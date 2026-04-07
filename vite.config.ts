@@ -12,10 +12,21 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
 
-      // 👇 PWA AQUI
       VitePWA({
         registerType: "autoUpdate",
+
         includeAssets: ["icons/icon.png"],
+
+        // 👇 CORREÇÃO DO ERRO "Unexpected token export"
+        workbox: {
+          globPatterns: ["**/*.{js,css,html,png,svg,ico}"],
+        },
+
+        // 👇 EVITA BUG NO DEV
+        devOptions: {
+          enabled: false,
+        },
+
         manifest: {
           name: "RideControl",
           short_name: "RideControl",
