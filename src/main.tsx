@@ -1,8 +1,13 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+// @ts-ignore
+import { registerSW } from "virtual:pwa-register";
 import App from "./App.tsx";
-// @ts-ignore -- side-effect CSS import may not have ambient module declarations in this setup
+// @ts-ignore
 import "./index.css";
+
+// 👇 ATIVA O PWA (FALTAVA ISSO)
+registerSW({ immediate: true });
 
 const savedDarkMode = localStorage.getItem("ridecontrol_dark_mode");
 if (savedDarkMode === "true") {
