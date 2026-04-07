@@ -1,0 +1,18 @@
+
+🚀 FEATURES (novas funcionalidades)
+
+
+
+🔒 Card 4 — Login e Cadastro
+Criar tela de login
+Criar tela de cadastro
+Integrar com o app
+
+
+🧠 Card 6 — Modo desenvolvedor
+Criar acesso restrito
+Exibir dados como:
+número de usuários
+dados internos do sistema
+
+

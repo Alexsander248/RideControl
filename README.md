@@ -1,0 +1,135 @@
+# RideControl
+
+RideControl é um app web/PWA para controle de motos. Ele foi pensado para uso no celular e organiza em um só lugar garagem, gastos, tarefas, perfil e diagnóstico.
+
+## O que o app faz
+
+- Cadastra motos com foto, modelo, ano, quilometragem e preço de compra.
+- Registra gastos por moto, com categorias como combustível, manutenção, peças e outros.
+- Permite registrar litros abastecidos quando o gasto é de combustível.
+- Cria e acompanha tarefas de manutenção.
+- Mostra resumo da garagem, atividade recente e métricas de diagnóstico.
+- Suporta modo PWA com splash screen, instalação no celular e cache offline básico.
+
+## Principais telas
+
+### Início
+
+Mostra o resumo geral do app, atalho para as áreas principais, estatísticas rápidas e atividade recente.
+
+### Garagem
+
+Lista todas as motos cadastradas, destaca as favoritas e permite abrir a ficha de cada moto.
+
+### Moto
+
+Exibe os detalhes da moto selecionada, imagem em destaque, botões para adicionar gastos e tarefas, e atividade recente.
+
+### Adicionar Moto
+
+Cadastro de uma nova moto com nome, modelo, ano, quilometragem atual, preço de compra e foto.
+
+### Adicionar Gastos
+
+Cadastro de despesas da moto. Quando a categoria é combustível, aparece o campo de litros abastecidos.
+
+### Adicionar Tarefa
+
+Cadastro de manutenção preventiva ou outras tarefas relacionadas à moto.
+
+### Diagnóstico
+
+Área de análise com gráficos e cards de total gasto, média mensal, custo por km e consumo.
+
+### Perfil
+
+Permite editar dados do usuário, foto do perfil, ativar tema escuro e acessar informações e notificações.
+
+## Recursos de PWA
+
+RideControl funciona como PWA:
+
+- Pode ser instalado no celular.
+- Abre em modo standalone, sem barra do navegador.
+- Usa splash screen própria ao iniciar.
+- Conta com service worker para cache de arquivos principais.
+- Foi ajustado para melhorar o fluxo de abertura em dispositivos móveis.
+
+## Estrutura do projeto
+
+- `src/App.tsx`: rotas principais do app.
+- `src/main.tsx`: ponto de entrada da aplicação React.
+- `src/context/AppContext.tsx`: estado global, persistência em `localStorage` e ações do app.
+- `src/pages/`: telas principais do sistema.
+- `src/components/`: componentes compartilhados, como navegação inferior e modal de imagem.
+- `src/lib/`: utilitários auxiliares.
+- `public/manifest.json`: configuração da PWA.
+- `public/sw.js`: service worker.
+- `splash.html`, `splash.css`, `splash.js`: splash screen de carregamento.
+
+## Fluxo dos dados
+
+Os dados ficam salvos localmente no navegador via `localStorage`.
+
+- Motos cadastradas vão para o estado global.
+- Gastos são associados a uma moto específica.
+- Tarefas também ficam vinculadas à moto.
+- O perfil do usuário e as configurações do app são persistidos localmente.
+
+## Tema claro e escuro
+
+O app tem alternância de tema claro e escuro. O estado é salvo localmente e reaplicado ao abrir o app.
+
+## Como rodar
+
+### Requisitos
+
+- Node.js
+
+### Instalar dependências
+
+```bash
+npm install
+```
+
+### Rodar em desenvolvimento
+
+```bash
+npm run dev
+```
+
+### Gerar build de produção
+
+```bash
+npm run build
+```
+
+### Pré-visualizar build
+
+```bash
+npm run preview
+```
+
+### Verificação de TypeScript
+
+```bash
+npm run lint
+```
+
+## Observações
+
+- O app foi otimizado para uso em celular.
+- Algumas imagens são salvas em formato local no navegador, então o espaço disponível no dispositivo pode afetar arquivos grandes.
+- Em PWA, recomenda-se instalar o app diretamente pela opção de instalação do navegador.
+
+## Tecnologias
+
+- React 19
+- TypeScript
+- Vite
+- Tailwind CSS
+- React Router
+- Motion
+- Recharts
+- date-fns
+- Lucide React
