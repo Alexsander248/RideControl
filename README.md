@@ -2,7 +2,7 @@
 
 RideControl é um app web/PWA para controle de motos. Ele foi pensado para uso no celular e organiza em um só lugar garagem, gastos, tarefas, perfil e diagnóstico.
 
-## O que o app faz
+## O que o app faz?
 
 - Cadastra motos com foto, modelo, ano, quilometragem e preço de compra.
 - Registra gastos por moto, com categorias como combustível, manutenção, peças e outros.
