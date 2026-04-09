@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import {
   PieChart,
@@ -34,6 +35,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { cn } from "../lib/utils";
 
 export const ExpenseInsights: React.FC = () => {
+  const navigate = useNavigate();
   const { expenses, bikes } = useApp();
   const [timeFilter, setTimeFilter] = useState<
     "Este Ano" | "Ano Passado" | "Todo Período"
@@ -417,9 +419,13 @@ export const ExpenseInsights: React.FC = () => {
                   new Date(b.date).getTime() - new Date(a.date).getTime(),
               )
               .map((expense) => (
-                <div
+                <button
                   key={expense.id}
-                  className="flex items-center gap-4 p-4 rounded-2xl bg-gray-50"
+                  type="button"
+                  onClick={() =>
+                    navigate(`/diagnostico/atividade/${expense.id}`)
+                  }
+                  className="w-full text-left flex items-center gap-4 p-4 rounded-2xl bg-gray-50 hover:bg-gray-100 transition-colors"
                 >
                   <div
                     className={cn(
@@ -470,7 +476,7 @@ export const ExpenseInsights: React.FC = () => {
                         : `${expense.km.toLocaleString()} KM`}
                     </p>
                   </div>
-                </div>
+                </button>
               ))
           )}
         </div>

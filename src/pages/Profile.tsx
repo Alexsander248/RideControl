@@ -151,8 +151,7 @@ export const Profile: React.FC = () => {
       <div className="mt-12 text-center">
         <p className="text-[10px] text-gray-300 font-black uppercase tracking-[0.2em]">
           RideControl v0.0.1 <br />
-          Criado por:
-          <br /> {userProfile.name}
+          Criado por: Alexsander Alcantara
         </p>
       </div>
 

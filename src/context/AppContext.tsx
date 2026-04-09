@@ -16,6 +16,8 @@ interface AppContextType extends AppState {
   toggleFavoriteBike: (id: string) => void;
   deleteBike: (id: string) => void;
   addExpense: (expense: Omit<Expense, "id">) => void;
+  updateExpense: (expense: Expense) => void;
+  deleteExpense: (id: string) => void;
   addTask: (task: Omit<MaintenanceTask, "id">) => void;
   toggleTask: (id: string) => void;
   updateUserProfile: (profile: Partial<UserProfile>) => void;
@@ -154,17 +156,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     }));
   };
 
+  const syncBikeKmWithExpenses = (expenses: Expense[], bikes: Bike[]) => {
+    const maxKmByBike = new Map<string, number>();
+
+    expenses.forEach((expense) => {
+      const currentMax = maxKmByBike.get(expense.bikeId) || 0;
+      if (expense.km > currentMax) {
+        maxKmByBike.set(expense.bikeId, expense.km);
+      }
+    });
+
+    return bikes.map((bike) => {
+      const expenseMaxKm = maxKmByBike.get(bike.id) || 0;
+      const nextKm = Math.max(bike.currentKm, expenseMaxKm);
+      return nextKm === bike.currentKm ? bike : { ...bike, currentKm: nextKm };
+    });
+  };
+
   const addExpense = (expenseData: Omit<Expense, "id">) => {
     const newExpense: Expense = { ...expenseData, id: crypto.randomUUID() };
-    setState((prev) => ({
-      ...prev,
-      expenses: [...prev.expenses, newExpense],
-      bikes: prev.bikes.map((bike) =>
-        bike.id === expenseData.bikeId && expenseData.km > bike.currentKm
-          ? { ...bike, currentKm: expenseData.km }
-          : bike,
-      ),
-    }));
+    setState((prev) => {
+      const nextExpenses = [...prev.expenses, newExpense];
+      return {
+        ...prev,
+        expenses: nextExpenses,
+        bikes: syncBikeKmWithExpenses(nextExpenses, prev.bikes),
+      };
+    });
+  };
+
+  const updateExpense = (expense: Expense) => {
+    setState((prev) => {
+      const nextExpenses = prev.expenses.map((item) =>
+        item.id === expense.id ? expense : item,
+      );
+      return {
+        ...prev,
+        expenses: nextExpenses,
+        bikes: syncBikeKmWithExpenses(nextExpenses, prev.bikes),
+      };
+    });
+  };
+
+  const deleteExpense = (id: string) => {
+    setState((prev) => {
+      const nextExpenses = prev.expenses.filter((item) => item.id !== id);
+      return {
+        ...prev,
+        expenses: nextExpenses,
+        bikes: syncBikeKmWithExpenses(nextExpenses, prev.bikes),
+      };
+    });
   };
 
   const addTask = (taskData: Omit<MaintenanceTask, "id">) => {
@@ -239,6 +281,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         toggleFavoriteBike,
         deleteBike,
         addExpense,
+        updateExpense,
+        deleteExpense,
         addTask,
         toggleTask,
         updateUserProfile,

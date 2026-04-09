@@ -156,15 +156,13 @@ export const BikeDetails: React.FC = () => {
             to={`/adicionar-gasto?bikeId=${bike.id}`}
             className="bg-blue-500 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-200 transition-transform active:scale-95"
           >
-            <Plus size={20} />
-            <span>Adicionar gastos</span>
+            <span>Adicionar Gastos</span>
           </Link>
           <Link
             to={`/adicionar-tarefa?bikeId=${bike.id}`}
             className="bg-red-600 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-red-200 transition-transform active:scale-95"
           >
-            <Plus size={20} />
-            <span>Adicionar tarefas</span>
+            <span>Adicionar Tarefas</span>
           </Link>
           <Link
             to={`/moto/${bike.id}/tarefas`}

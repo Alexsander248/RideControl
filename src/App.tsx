@@ -19,6 +19,7 @@ import { BikeDetails } from "./pages/BikeDetails";
 import { BikeTasks } from "./pages/BikeTasks.tsx";
 import { EditBike } from "./pages/EditBike";
 import { ExpenseInsights } from "./pages/ExpenseInsights.tsx";
+import { ExpenseActivityDetails } from "./pages/ExpenseActivityDetails";
 import { AddBike } from "./pages/AddBike";
 import { AddExpense } from "./pages/AddExpense";
 import { AddTask } from "./pages/AddTask";
@@ -63,6 +64,10 @@ function AppContent() {
           <Route path="moto/:id/tarefas" element={<BikeTasks />} />
           <Route path="moto/:id/editar" element={<EditBike />} />
           <Route path="diagnostico" element={<ExpenseInsights />} />
+          <Route
+            path="diagnostico/atividade/:id"
+            element={<ExpenseActivityDetails />}
+          />
           <Route path="perfil" element={<Profile />} />
           <Route path="perfil/informacoes" element={<PersonalInfo />} />
           <Route path="perfil/notificacoes" element={<Notifications />} />

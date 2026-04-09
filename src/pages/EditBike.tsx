@@ -3,6 +3,18 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ArrowLeft, Camera, Save } from "lucide-react";
 import { getOptimizedImageDataUrl } from "../lib/image";
+import {
+  getFipePriceForYear,
+  getMotorcycleSuggestions,
+  getMotorcycleYearOptions,
+  MotorcycleSuggestion,
+  MotorcycleYearOption,
+} from "../lib/motorcycleAutocomplete";
+
+type SelectedFipeModel = {
+  brandCode: string;
+  modelCode: number;
+};
 
 export const EditBike: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -13,20 +25,166 @@ export const EditBike: React.FC = () => {
 
   const [formData, setFormData] = useState({
     name: "",
+    model: "",
+    year: new Date().getFullYear(),
     photoUrl: "",
+    purchasePrice: 0,
   });
+  const [nameSuggestions, setNameSuggestions] = useState<
+    MotorcycleSuggestion[]
+  >([]);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedFipeModel, setSelectedFipeModel] =
+    useState<SelectedFipeModel | null>(null);
+  const [yearOptions, setYearOptions] = useState<MotorcycleYearOption[]>([]);
+  const [selectedYearCode, setSelectedYearCode] = useState("");
+  const [isLoadingYears, setIsLoadingYears] = useState(false);
+  const [isLoadingPrice, setIsLoadingPrice] = useState(false);
 
   useEffect(() => {
     if (!bike) return;
     setFormData({
       name: bike.name,
+      model: bike.model,
+      year: bike.year,
       photoUrl: bike.photoUrl || "",
+      purchasePrice: bike.purchasePrice || 0,
     });
   }, [bike]);
+
+  useEffect(() => {
+    const query = formData.name.trim();
+    if (query.length < 2) {
+      setNameSuggestions([]);
+      setIsLoadingSuggestions(false);
+      return;
+    }
+
+    let isCancelled = false;
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        setIsLoadingSuggestions(true);
+        const suggestions = await getMotorcycleSuggestions(query);
+        if (!isCancelled) {
+          setNameSuggestions(suggestions);
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          setNameSuggestions([]);
+        }
+        console.error("Erro ao buscar sugestoes de moto:", error);
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingSuggestions(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      isCancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [formData.name]);
 
   if (!bike) {
     return <div className="p-8 text-center">Moto não encontrada</div>;
   }
+
+  const applySelectedYearPrice = async (
+    fipeModel: SelectedFipeModel,
+    yearCode: string,
+  ) => {
+    try {
+      setIsLoadingPrice(true);
+      const fipePrice = await getFipePriceForYear(
+        fipeModel.brandCode,
+        fipeModel.modelCode,
+        yearCode,
+      );
+      setFormData((prev) => ({ ...prev, purchasePrice: fipePrice }));
+    } catch (error) {
+      console.error("Erro ao buscar valor FIPE:", error);
+      setFormData((prev) => ({ ...prev, purchasePrice: 0 }));
+    } finally {
+      setIsLoadingPrice(false);
+    }
+  };
+
+  const handleSelectSuggestion = async (suggestion: MotorcycleSuggestion) => {
+    const fipeModel: SelectedFipeModel = {
+      brandCode: suggestion.brandCode,
+      modelCode: suggestion.modelCode,
+    };
+
+    setFormData((prev) => ({
+      ...prev,
+      name: suggestion.name,
+      model: suggestion.model,
+      purchasePrice: 0,
+    }));
+    setShowSuggestions(false);
+    setSelectedFipeModel(fipeModel);
+    setSelectedYearCode("");
+    setYearOptions([]);
+
+    try {
+      setIsLoadingYears(true);
+      const options = await getMotorcycleYearOptions(
+        suggestion.brandCode,
+        suggestion.modelCode,
+      );
+      setYearOptions(options);
+
+      if (options.length > 0) {
+        const currentYear = new Date().getFullYear();
+        const preferredOption =
+          options.find((item) => item.year === currentYear) || options[0];
+
+        setSelectedYearCode(preferredOption.code);
+        setFormData((prev) => ({ ...prev, year: preferredOption.year }));
+        await applySelectedYearPrice(fipeModel, preferredOption.code);
+      } else {
+        setSelectedYearCode("");
+        setFormData((prev) => ({ ...prev, purchasePrice: 0 }));
+      }
+    } catch (error) {
+      console.error("Erro ao carregar anos da moto selecionada:", error);
+      setYearOptions([]);
+      setSelectedYearCode("");
+      setFormData((prev) => ({ ...prev, purchasePrice: 0 }));
+    } finally {
+      setIsLoadingYears(false);
+    }
+  };
+
+  const handleYearSelectionChange = async (
+    e: React.ChangeEvent<HTMLSelectElement>,
+  ) => {
+    const yearCode = e.target.value;
+    const selectedYearOption = yearOptions.find(
+      (item) => item.code === yearCode,
+    );
+
+    setSelectedYearCode(yearCode);
+    if (selectedYearOption) {
+      setFormData((prev) => ({ ...prev, year: selectedYearOption.year }));
+    } else {
+      setFormData((prev) => ({ ...prev, purchasePrice: 0 }));
+    }
+
+    if (selectedFipeModel && yearCode) {
+      await applySelectedYearPrice(selectedFipeModel, yearCode);
+    }
+  };
+
+  const handleNameInputChange = (nextName: string) => {
+    setFormData((prev) => ({ ...prev, name: nextName }));
+    setSelectedFipeModel(null);
+    setYearOptions([]);
+    setSelectedYearCode("");
+    setIsLoadingPrice(false);
+  };
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -43,10 +201,18 @@ export const EditBike: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!formData.name || !formData.model) {
+      alert("Nome e Modelo são obrigatórios");
+      return;
+    }
+
     updateBike({
       ...bike,
       name: formData.name.trim(),
+      model: formData.model.trim(),
+      year: formData.year,
       photoUrl: formData.photoUrl.trim(),
+      purchasePrice: formData.purchasePrice,
     });
 
     navigate(`/moto/${bike.id}`);
@@ -91,20 +257,137 @@ export const EditBike: React.FC = () => {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
-              Nome da moto
-            </label>
-            <input
-              required
-              type="text"
-              placeholder="e.g. BMW R 1250 GS"
-              className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
-              value={formData.name}
-              onChange={(e) =>
-                setFormData({ ...formData, name: e.target.value })
-              }
-            />
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
+                Nome da moto
+              </label>
+              <div className="relative">
+                <input
+                  required
+                  type="text"
+                  placeholder="e.g. Yamaha R15"
+                  className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
+                  value={formData.name}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => {
+                    window.setTimeout(() => setShowSuggestions(false), 120);
+                  }}
+                  onChange={(e) => handleNameInputChange(e.target.value)}
+                />
+
+                {showSuggestions &&
+                  (isLoadingSuggestions || nameSuggestions.length > 0) && (
+                    <div className="absolute z-20 mt-2 w-full bg-white border border-gray-100 rounded-2xl shadow-lg max-h-56 overflow-y-auto">
+                      {isLoadingSuggestions && (
+                        <p className="px-4 py-3 text-sm text-gray-400">
+                          Buscando sugestoes...
+                        </p>
+                      )}
+
+                      {!isLoadingSuggestions &&
+                        nameSuggestions.map((suggestion) => (
+                          <button
+                            key={`${suggestion.brandCode}-${suggestion.modelCode}`}
+                            type="button"
+                            className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-blue-50 transition-colors"
+                            onClick={() => handleSelectSuggestion(suggestion)}
+                          >
+                            {suggestion.label}
+                          </button>
+                        ))}
+                    </div>
+                  )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
+                Modelo
+              </label>
+              <input
+                required
+                type="text"
+                placeholder="e.g. Adventure"
+                className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
+                value={formData.model}
+                onChange={(e) =>
+                  setFormData({ ...formData, model: e.target.value })
+                }
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
+                  Ano
+                </label>
+                {yearOptions.length > 0 ? (
+                  <select
+                    required
+                    value={selectedYearCode}
+                    onChange={handleYearSelectionChange}
+                    className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
+                  >
+                    {yearOptions.map((option) => (
+                      <option key={option.code} value={option.code}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    required
+                    type="number"
+                    placeholder="2024"
+                    className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
+                    value={formData.year || ""}
+                    onChange={(e) => {
+                      const nextYear = Number(e.target.value);
+                      setFormData({
+                        ...formData,
+                        year: Number.isNaN(nextYear)
+                          ? new Date().getFullYear()
+                          : nextYear,
+                      });
+                    }}
+                  />
+                )}
+                {isLoadingYears && (
+                  <p className="text-[10px] text-gray-400 mt-2 ml-1">
+                    Carregando anos FIPE...
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
+                Preço de compra (R$)
+              </label>
+              <input
+                type="number"
+                placeholder="0.00"
+                className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
+                value={
+                  formData.purchasePrice === 0 ? "" : formData.purchasePrice
+                }
+                onChange={(e) => {
+                  const nextPrice = Number(e.target.value);
+                  setFormData({
+                    ...formData,
+                    purchasePrice: Number.isNaN(nextPrice) ? 0 : nextPrice,
+                  });
+                }}
+              />
+              {selectedFipeModel && (
+                <p className="text-[10px] text-gray-400 mt-2 ml-1">
+                  {isLoadingPrice
+                    ? "Buscando valor FIPE..."
+                    : "Valor preenchido automaticamente pela FIPE."}
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
