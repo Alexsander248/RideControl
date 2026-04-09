@@ -31,6 +31,24 @@ export const AddExpense: React.FC = () => {
     liters: 0,
     notes: "",
   });
+  const [amountInput, setAmountInput] = useState("");
+
+  const formatBrlCurrency = (value: number) =>
+    new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
+
+  const handleAmountChange = (rawValue: string) => {
+    const digitsOnly = rawValue.replace(/\D/g, "");
+    const nextAmount = digitsOnly ? Number(digitsOnly) / 100 : 0;
+
+    setAmountInput(digitsOnly ? formatBrlCurrency(nextAmount) : "");
+    setFormData((prev) => ({
+      ...prev,
+      amount: nextAmount,
+    }));
+  };
 
   const categories = [
     {
@@ -51,7 +69,10 @@ export const AddExpense: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.bikeId) return;
+    if (!formData.bikeId || formData.amount <= 0) {
+      alert("Preencha uma motocicleta e um valor maior que zero.");
+      return;
+    }
     addExpense(formData as any);
     navigate(`/moto/${formData.bikeId}`);
   };
@@ -151,18 +172,12 @@ export const AddExpense: React.FC = () => {
                 </label>
                 <input
                   required
-                  type="number"
-                  step="0.01"
-                  placeholder="0,00"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="R$ 0,00"
                   className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
-                  value={formData.amount === 0 ? "" : formData.amount}
-                  onChange={(e) => {
-                    const nextAmount = Number(e.target.value);
-                    setFormData({
-                      ...formData,
-                      amount: Number.isNaN(nextAmount) ? 0 : nextAmount,
-                    });
-                  }}
+                  value={amountInput}
+                  onChange={(e) => handleAmountChange(e.target.value)}
                 />
               </div>
               <div>
