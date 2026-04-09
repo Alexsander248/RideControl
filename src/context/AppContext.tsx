@@ -9,6 +9,7 @@ import {
 } from "../types";
 
 interface AppContextType extends AppState {
+  isProfileComplete: boolean;
   addBike: (bike: Omit<Bike, "id">) => void;
   updateBike: (bike: Bike) => void;
   toggleFavoriteBike: (id: string) => void;
@@ -52,7 +53,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const [state, setState] = useState<AppState>(() => {
     const installYear = getInstallYear();
     const defaultProfile: UserProfile = {
-      name: "Alexsander Alcantara",
+      name: "",
       photoUrl: DEFAULT_PROFILE_PHOTO,
       memberSince: installYear,
     };
@@ -205,10 +206,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     }));
   };
 
+  const isProfileComplete = state.userProfile.name.trim().length > 0;
+
   return (
     <AppContext.Provider
       value={{
         ...state,
+        isProfileComplete,
         addBike,
         updateBike,
         toggleFavoriteBike,
