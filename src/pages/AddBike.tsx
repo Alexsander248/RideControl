@@ -104,6 +104,7 @@ export const AddBike: React.FC = () => {
       name: suggestion.name,
       model: suggestion.model,
       purchasePrice: 0,
+      year: new Date().getFullYear(),
     }));
     setShowSuggestions(false);
     setSelectedFipeModel(fipeModel);
@@ -124,7 +125,10 @@ export const AddBike: React.FC = () => {
           options.find((item) => item.year === currentYear) || options[0];
 
         setSelectedYearCode(preferredOption.code);
-        setFormData((prev) => ({ ...prev, year: preferredOption.year }));
+        setFormData((prev) => ({
+          ...prev,
+          year: preferredOption.year,
+        }));
         await applySelectedYearPrice(fipeModel, preferredOption.code);
       } else {
         setSelectedYearCode("");

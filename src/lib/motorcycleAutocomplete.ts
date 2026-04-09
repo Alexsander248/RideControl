@@ -156,8 +156,20 @@ async function fetchYearsByModel(
 }
 
 function extractYear(value: string): number {
+  if (!value || typeof value !== "string") {
+    return new Date().getFullYear();
+  }
+
   const match = value.match(/\b(19|20)\d{2}\b/);
-  return match ? Number(match[0]) : new Date().getFullYear();
+  const year = match ? Number(match[0]) : null;
+
+  // Valida se é um ano válido (entre 1990 e atual)
+  const currentYear = new Date().getFullYear();
+  if (year && year >= 1990 && year <= currentYear) {
+    return year;
+  }
+
+  return currentYear;
 }
 
 function parseBrlValueToNumber(rawValue: string): number {
