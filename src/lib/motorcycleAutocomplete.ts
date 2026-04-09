@@ -172,6 +172,26 @@ function extractYear(value: string): number {
   return currentYear;
 }
 
+function extractYearFromFipeEntry(year: FipeYear): number | null {
+  const currentYear = new Date().getFullYear();
+
+  const codeYearMatch = String(year.codigo).match(/^(\d{4})-/);
+  if (codeYearMatch) {
+    const codeYear = Number(codeYearMatch[1]);
+    if (codeYear >= 1990 && codeYear <= currentYear) {
+      return codeYear;
+    }
+    return null;
+  }
+
+  const nameYear = extractYear(String(year.nome));
+  if (nameYear >= 1990 && nameYear <= currentYear) {
+    return nameYear;
+  }
+
+  return null;
+}
+
 function parseBrlValueToNumber(rawValue: string): number {
   const sanitized = rawValue
     .replace(/R\$\s?/g, "")
@@ -234,18 +254,30 @@ export async function getMotorcycleYearOptions(
   const currentYear = new Date().getFullYear();
 
   const options = years
-    .map((year) => ({
-      code: year.codigo,
-      label: year.nome,
-      year: extractYear(year.nome),
-    }))
-    .filter((item) => item.year <= currentYear);
+    .map((year) => {
+      const extractedYear = extractYearFromFipeEntry(year);
+      return {
+        code: year.codigo,
+        label: extractedYear ? String(extractedYear) : "",
+        year: extractedYear,
+      };
+    })
+    .filter((item): item is { code: string; label: string; year: number } => {
+      // Filtra anos válidos: entre 1990 e ano atual
+      return (
+        item.year !== null && item.year >= 1990 && item.year <= currentYear
+      );
+    });
 
   // Mantem apenas uma opcao por ano e prioriza a primeira ocorrencia retornada pela FIPE.
   const dedupedByYear = new Map<number, MotorcycleYearOption>();
   options.forEach((option) => {
     if (!dedupedByYear.has(option.year)) {
-      dedupedByYear.set(option.year, option);
+      dedupedByYear.set(option.year, {
+        code: option.code,
+        label: option.label,
+        year: option.year,
+      });
     }
   });
 

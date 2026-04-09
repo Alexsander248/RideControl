@@ -16,6 +16,14 @@ type SelectedFipeModel = {
   modelCode: number;
 };
 
+const validateYear = (year: number): number => {
+  const currentYear = new Date().getFullYear();
+  if (year >= 1990 && year <= currentYear) {
+    return year;
+  }
+  return currentYear;
+};
+
 export const EditBike: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -143,9 +151,10 @@ export const EditBike: React.FC = () => {
           options.find((item) => item.year === currentYear) || options[0];
 
         setSelectedYearCode(preferredOption.code);
+        const validYear = validateYear(preferredOption.year);
         setFormData((prev) => ({
           ...prev,
-          year: preferredOption.year,
+          year: validYear,
         }));
         await applySelectedYearPrice(fipeModel, preferredOption.code);
       } else {
@@ -172,14 +181,8 @@ export const EditBike: React.FC = () => {
 
     setSelectedYearCode(yearCode);
     if (selectedYearOption) {
-      const validYear = selectedYearOption.year;
-      // Valida que o ano está num range válido
-      if (validYear >= 1990 && validYear <= new Date().getFullYear()) {
-        setFormData((prev) => ({ ...prev, year: validYear }));
-      } else {
-        console.warn("Ano inválido retornado pela FIPE:", validYear);
-        setFormData((prev) => ({ ...prev, year: new Date().getFullYear() }));
-      }
+      const validYear = validateYear(selectedYearOption.year);
+      setFormData((prev) => ({ ...prev, year: validYear }));
     } else {
       setFormData((prev) => ({ ...prev, purchasePrice: 0 }));
     }
@@ -352,14 +355,17 @@ export const EditBike: React.FC = () => {
                     type="number"
                     placeholder="2024"
                     className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
-                    value={formData.year || ""}
+                    value={validateYear(formData.year) || ""}
                     onChange={(e) => {
                       const nextYear = Number(e.target.value);
                       setFormData({
                         ...formData,
-                        year: Number.isNaN(nextYear)
-                          ? new Date().getFullYear()
-                          : nextYear,
+                        year:
+                          Number.isNaN(nextYear) ||
+                          nextYear < 1990 ||
+                          nextYear > new Date().getFullYear()
+                            ? new Date().getFullYear()
+                            : nextYear,
                       });
                     }}
                   />
