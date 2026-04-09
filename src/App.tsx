@@ -24,7 +24,6 @@ import { AddTask } from "./pages/AddTask";
 import { Profile } from "./pages/Profile";
 import { PersonalInfo } from "./pages/PersonalInfo.tsx";
 import { Notifications } from "./pages/Notifications";
-import { useEffect } from "react";
 
 function LegacyBikeRedirect() {
   const { id } = useParams();
@@ -32,21 +31,6 @@ function LegacyBikeRedirect() {
 }
 
 export default function App() {
-  useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker
-          .register("/sw.js")
-          .then((registration) => {
-            console.log("SW registered: ", registration);
-          })
-          .catch((registrationError) => {
-            console.log("SW registration failed: ", registrationError);
-          });
-      });
-    }
-  }, []);
-
   return (
     <AppProvider>
       <BrowserRouter>

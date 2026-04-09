@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: "autoUpdate",
 
-        includeAssets: ["icons/icon.png"],
+        includeAssets: ["icons/icon.png", "icons/icon2.png"],
 
         // 👇 CORREÇÃO DO ERRO "Unexpected token export"
         workbox: {
@@ -26,31 +26,7 @@ export default defineConfig(({ mode }) => {
         devOptions: {
           enabled: false,
         },
-
-        manifest: {
-          name: "RideControl",
-          short_name: "RideControl",
-          description: "Gerencie sua moto",
-          theme_color: "#22C55E",
-          background_color: "#0f172a",
-          display: "standalone",
-          start_url: "/",
-          orientation: "portrait",
-          icons: [
-            {
-              src: "/icons/icon.png",
-              sizes: "192x192",
-              type: "image/png",
-              purpose: "any maskable",
-            },
-            {
-              src: "/icons/icon.png",
-              sizes: "512x512",
-              type: "image/png",
-              purpose: "any maskable",
-            },
-          ],
-        },
+        manifest: false,
       }),
     ],
 

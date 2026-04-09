@@ -122,6 +122,14 @@ npm run lint
 - Algumas imagens são salvas em formato local no navegador, então o espaço disponível no dispositivo pode afetar arquivos grandes.
 - Em PWA, recomenda-se instalar o app diretamente pela opção de instalação do navegador.
 
+## Shortcuts
+
+press r + enter to restart the server
+press u + enter to show server url
+press o + enter to open in browser
+press c + enter to clear console
+press q + enter to quit
+
 ## Tecnologias
 
 - React 19
