@@ -1,13 +1,19 @@
 ﻿import React from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { Home, Activity, Plus, Bike, User } from "lucide-react";
 import { cn } from "../lib/utils";
 
 interface BottomNavProps {
   onQuickAction: () => void;
+  disabled?: boolean;
 }
 
-export const BottomNav: React.FC<BottomNavProps> = ({ onQuickAction }) => {
+export const BottomNav: React.FC<BottomNavProps> = ({
+  onQuickAction,
+  disabled = false,
+}) => {
+  const location = useLocation();
+
   const navItems = [
     { icon: Home, label: "Início", path: "/" },
     { icon: Bike, label: "Garagem", path: "/garagem" },
@@ -15,6 +21,16 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onQuickAction }) => {
     { icon: Activity, label: "Diagnóstico", path: "/diagnostico" },
     { icon: User, label: "Perfil", path: "/perfil" },
   ];
+
+  const isItemActive = (path: string) => {
+    if (path === "/") {
+      return location.pathname === "/";
+    }
+
+    return (
+      location.pathname === path || location.pathname.startsWith(`${path}/`)
+    );
+  };
 
   return (
     <>
@@ -26,7 +42,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onQuickAction }) => {
               <button
                 key={index}
                 onClick={onQuickAction}
-                className="bg-blue-500 text-white p-4 rounded-full shadow-lg shadow-blue-200 -mt-12 transform transition-transform active:scale-95"
+                disabled={disabled}
+                className={cn(
+                  "p-4 rounded-full -mt-12 transform transition-transform",
+                  disabled
+                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    : "bg-blue-500 text-white shadow-lg shadow-blue-200 active:scale-95",
+                )}
               >
                 <Plus size={28} />
               </button>
@@ -34,6 +56,26 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onQuickAction }) => {
           }
 
           const Icon = item.icon!;
+
+          if (disabled) {
+            const active = isItemActive(item.path);
+
+            return (
+              <button
+                key={index}
+                type="button"
+                disabled
+                className={cn(
+                  "flex flex-col items-center gap-1 cursor-not-allowed",
+                  active ? "text-blue-500" : "text-gray-300",
+                )}
+              >
+                <Icon size={24} />
+                <span className="text-[10px] font-medium">{item.label}</span>
+              </button>
+            );
+          }
+
           return (
             <NavLink
               key={index}
