@@ -1,4 +1,4 @@
-﻿import React from "react";
+﻿import React, { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext";
 import {
   Fuel,
@@ -7,9 +7,10 @@ import {
   TrendingUp,
   ChevronRight,
   AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
-import { Link } from "react-router-dom";
-import { motion } from "motion/react";
+import { Link, useLocation } from "react-router-dom";
+import { AnimatePresence, motion } from "motion/react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "../lib/utils";
@@ -25,6 +26,10 @@ const EXPENSE_TYPE_LABELS: Record<string, string> = {
 
 export const Home: React.FC = () => {
   const { bikes, expenses, tasks, userProfile } = useApp();
+  const location = useLocation<{ fromProfileComplete?: boolean }>();
+  const [showProfileCompleteBanner, setShowProfileCompleteBanner] = useState(
+    Boolean(location.state?.fromProfileComplete),
+  );
 
   const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
   const activeTasks = tasks.filter((t) => !t.completed);
@@ -37,8 +42,55 @@ export const Home: React.FC = () => {
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 3);
 
+  useEffect(() => {
+    if (!showProfileCompleteBanner) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setShowProfileCompleteBanner(false);
+    }, 2400);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [showProfileCompleteBanner]);
+
   return (
-    <div className="p-6 pb-24">
+    <motion.div
+      className="p-6 pb-24"
+      initial={
+        showProfileCompleteBanner ? { opacity: 0, y: 18, scale: 0.985 } : false
+      }
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.45, ease: "easeOut" }}
+    >
+      <AnimatePresence>
+        {showProfileCompleteBanner && (
+          <motion.div
+            className="mb-6 rounded-[28px] bg-gradient-to-r from-emerald-500 via-blue-500 to-sky-500 text-white p-4 shadow-2xl shadow-blue-200 overflow-hidden relative"
+            initial={{ opacity: 0, y: -18, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.98 }}
+            transition={{ duration: 0.35, ease: "easeOut" }}
+          >
+            <div className="absolute -right-8 -top-8 w-28 h-28 bg-white/15 rounded-full blur-xl" />
+            <div className="absolute -left-6 -bottom-10 w-24 h-24 bg-white/10 rounded-full blur-xl" />
+            <div className="relative z-10 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
+                <CheckCircle2 size={28} />
+              </div>
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.28em] text-white/85">
+                  Perfil concluído
+                </p>
+                <p className="font-bold">
+                  Seu painel já abriu com tudo pronto para começar.
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <header className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Painel</h1>
@@ -60,7 +112,12 @@ export const Home: React.FC = () => {
       </header>
 
       {/* Main Stats */}
-      <div className="bg-blue-500 rounded-[40px] p-8 text-white shadow-2xl shadow-blue-200 mb-8 relative overflow-hidden">
+      <motion.div
+        className="bg-blue-500 rounded-[40px] p-8 text-white shadow-2xl shadow-blue-200 mb-8 relative overflow-hidden"
+        initial={showProfileCompleteBanner ? { opacity: 0, y: 16 } : false}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: "easeOut", delay: 0.06 }}
+      >
         <div className="relative z-10">
           <p className="text-blue-100 text-sm font-bold uppercase tracking-widest mb-2">
             Total de gastos
@@ -92,10 +149,15 @@ export const Home: React.FC = () => {
         {/* Decorative Circles */}
         <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full" />
         <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full" />
-      </div>
+      </motion.div>
 
       {/* Quick Stats Grid */}
-      <div className="grid grid-cols-2 gap-4 mb-8">
+      <motion.div
+        className="grid grid-cols-2 gap-4 mb-8"
+        initial={showProfileCompleteBanner ? { opacity: 0, y: 16 } : false}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut", delay: 0.12 }}
+      >
         <Link
           to="/diagnostico"
           className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-50 flex flex-col gap-3"
@@ -124,10 +186,15 @@ export const Home: React.FC = () => {
             <p className="font-bold">Gerenciar motos</p>
           </div>
         </Link>
-      </div>
+      </motion.div>
 
       {/* Recent Activity */}
-      <section className="mb-8">
+      <motion.section
+        className="mb-8"
+        initial={showProfileCompleteBanner ? { opacity: 0, y: 16 } : false}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut", delay: 0.18 }}
+      >
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-bold">Atividade recente</h3>
           <Link to="/diagnostico" className="text-blue-500 text-sm font-bold">
@@ -198,11 +265,15 @@ export const Home: React.FC = () => {
             ))
           )}
         </div>
-      </section>
+      </motion.section>
 
       {/* Maintenance Alerts */}
       {activeTasks.length > 0 && (
-        <section>
+        <motion.section
+          initial={showProfileCompleteBanner ? { opacity: 0, y: 16 } : false}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: "easeOut", delay: 0.24 }}
+        >
           <h3 className="text-xl font-bold mb-6">Alertas de manutenção</h3>
           <div className="bg-red-50 border border-red-100 rounded-[32px] p-6 flex items-start gap-4">
             <div className="bg-red-500 text-white p-2 rounded-xl">
@@ -224,8 +295,8 @@ export const Home: React.FC = () => {
               </Link>
             </div>
           </div>
-        </section>
+        </motion.section>
       )}
-    </div>
+    </motion.div>
   );
 };
