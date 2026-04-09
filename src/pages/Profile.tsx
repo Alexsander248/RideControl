@@ -35,6 +35,29 @@ export const Profile: React.FC = () => {
     localStorage.setItem("ridecontrol_dark_mode", String(isDarkMode));
   }, [isDarkMode]);
 
+  const handleDeleteAccount = () => {
+    const confirmed = window.confirm(
+      "Tem certeza que deseja excluir sua conta? Esta ação não pode ser desfeita e todos os seus dados serão apagados permanentemente.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      // Limpar todos os dados do localStorage
+      localStorage.removeItem("motocontrol_data");
+      localStorage.removeItem("ridecontrol_install_year");
+      localStorage.removeItem("ridecontrol_dark_mode");
+
+      // Recarregar a página para resetar o app
+      window.location.href = "/";
+    } catch (error) {
+      console.error("Erro ao excluir conta:", error);
+      alert("Erro ao excluir sua conta. Tente novamente.");
+    }
+  };
+
   const menuItems: MenuItem[] = [
     {
       icon: User,
@@ -138,12 +161,16 @@ export const Profile: React.FC = () => {
           </button>
         ))}
 
-        <button className="w-full bg-red-50 p-5 rounded-[28px] flex items-center justify-between border border-red-100 mt-8 transition-transform active:scale-[0.98]">
+        <button
+          type="button"
+          onClick={handleDeleteAccount}
+          className="w-full bg-red-50 p-5 rounded-[28px] flex items-center justify-between border border-red-100 mt-8 transition-transform active:scale-[0.98]"
+        >
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center text-red-500">
               <LogOut size={20} />
             </div>
-            <span className="font-bold text-red-600">Sair</span>
+            <span className="font-bold text-red-600">Excluir conta</span>
           </div>
         </button>
       </div>
