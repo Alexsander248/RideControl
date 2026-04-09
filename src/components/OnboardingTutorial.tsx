@@ -1,15 +1,17 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useNavigate } from "react-router-dom";
 import {
+  Bike,
   ChevronLeft,
   ChevronRight,
-  X,
+  Fuel,
   Home,
-  Bike,
-  TrendingUp,
+  Package,
   Plus,
-  User,
+  TrendingUp,
+  Wrench,
+  X,
 } from "lucide-react";
 import { useApp } from "../context/AppContext";
 
@@ -24,49 +26,110 @@ interface TutorialStep {
 
 const TUTORIAL_STEPS: TutorialStep[] = [
   {
-    id: "painel",
-    title: "Seu Painel",
-    description:
-      "Aqui você vê um resumo rápido dos seus gastos totais, quantidade de motos e tarefas aguardando atenção.",
-    targetElement: ".tutorial-painel",
-    route: "/",
-    icon: Home,
-  },
-  {
     id: "garagem",
     title: "Garagem",
     description:
-      "Gerencie todas as suas motos aqui. Adicione novas, visualize detalhes e acompanhe manutenção.",
+      "Aqui ficam suas motos cadastradas, com acesso rápido aos detalhes de cada uma.",
     targetElement: ".tutorial-garagem",
-    route: "/garagem",
+    route: "/garagem?tutorial=1",
     icon: Bike,
   },
   {
-    id: "diagnostico",
-    title: "Relatórios",
+    id: "garagem-add",
+    title: "Adicionar Moto",
+    description: "Use o botão + para cadastrar uma nova moto na sua garagem.",
+    targetElement: ".tutorial-garagem-add",
+    route: "/garagem?tutorial=1",
+    icon: Plus,
+  },
+  {
+    id: "add-bike",
+    title: "Cadastrar Moto",
     description:
-      "Visualize gráficos detalhados sobre seus gastos e acompanhe padrões de manutenção.",
-    targetElement: ".tutorial-diagnostico",
-    route: "/diagnostico",
-    icon: TrendingUp,
+      "Nesta tela você cadastra uma moto com foto, modelo, ano, quilometragem e valor de compra.",
+    targetElement: ".tutorial-add-bike",
+    route: "/adicionar-moto?tutorial=1",
+    icon: Bike,
+  },
+  {
+    id: "garage-with-bike",
+    title: "Moto Cadastrada",
+    description:
+      "Após salvar, a moto passa a aparecer na garagem para gerenciamento e consulta.",
+    targetElement: ".tutorial-garagem",
+    route: "/garagem?tutorial=1",
+    icon: Bike,
   },
   {
     id: "quick-actions",
     title: "Ações Rápidas",
     description:
-      "Use o botão + para adicionar rapidamente motos, gastos ou tarefas sem sair da home.",
+      "Use o botão + para abrir atalhos e registrar informações sem sair da tela principal.",
     targetElement: ".tutorial-quick-action",
-    route: "/",
+    route: "/?tutorial=1",
     icon: Plus,
   },
   {
-    id: "perfil",
-    title: "Seu Perfil",
+    id: "add-expense",
+    title: "Adicionar Gastos",
     description:
-      "Acesse suas informações pessoais, notificações, modo escuro e outras configurações.",
-    targetElement: ".tutorial-perfil",
-    route: "/",
-    icon: User,
+      "Nesta tela você registra seus gastos e escolhe a categoria adequada para cada lançamento.",
+    targetElement: ".tutorial-add-expense",
+    route: "/adicionar-gasto?type=Combustivel&tutorial=1&bikeId=tutorial-bike",
+    icon: Fuel,
+  },
+  {
+    id: "add-expense-combustivel",
+    title: "Categoria Combustível",
+    description:
+      "Use Combustível para registrar abastecimentos com valor, litros e quilometragem.",
+    targetElement: ".tutorial-expense-category-Combustivel",
+    route: "/adicionar-gasto?type=Combustivel&tutorial=1&bikeId=tutorial-bike",
+    icon: Fuel,
+  },
+  {
+    id: "add-expense-manutencao",
+    title: "Categoria Manutenção",
+    description:
+      "Use Manutenção para serviços como revisão, troca de óleo e ajustes mecânicos.",
+    targetElement: ".tutorial-expense-category-Manutencao",
+    route: "/adicionar-gasto?type=Manutencao&tutorial=1&bikeId=tutorial-bike",
+    icon: Wrench,
+  },
+  {
+    id: "add-expense-pecas",
+    title: "Categoria Peças",
+    description: "Use Peças para compras de componentes e reposições da moto.",
+    targetElement: ".tutorial-expense-category-Pecas",
+    route: "/adicionar-gasto?type=Pecas&tutorial=1&bikeId=tutorial-bike",
+    icon: Package,
+  },
+  {
+    id: "add-expense-outros",
+    title: "Categoria Outros",
+    description:
+      "Use Outros para despesas que não se encaixam nas categorias principais.",
+    targetElement: ".tutorial-expense-category-Outros",
+    route: "/adicionar-gasto?type=Outros&tutorial=1&bikeId=tutorial-bike",
+    icon: Plus,
+  },
+  {
+    id: "diagnostico",
+    title: "Relatórios",
+    description:
+      "No diagnóstico você acompanha indicadores, gráficos e atividades para análise de custos.",
+    targetElement: ".tutorial-diagnostico",
+    route: "/diagnostico?tutorial=1",
+    icon: TrendingUp,
+  },
+  {
+    id: "painel",
+    title: "Painel Inicial",
+    description:
+      "No painel você visualiza o resumo geral do app com visão rápida das informações principais.",
+    targetElement: ".tutorial-painel",
+    route: "/?tutorial=1",
+    icon: Home,
   },
 ];
 
@@ -87,31 +150,29 @@ export const OnboardingTutorial: React.FC = () => {
   const step = TUTORIAL_STEPS[currentStep];
   const Icon = step.icon;
 
-  // Navegar para a rota correta se não estiver lá - apenas quando o step muda
   useEffect(() => {
-    // Evitar navegação repetida para o mesmo step
     if (lastNavigatedStepRef.current !== currentStep) {
       navigate(step.route);
       lastNavigatedStepRef.current = currentStep;
     }
-  }, [currentStep, step.route, navigate]);
+  }, [currentStep, navigate, step.route]);
 
   useEffect(() => {
-    // Pequeno delay para garantir que o elemento foi renderizado após navegação
-    const timer = setTimeout(() => {
+    const timer = window.setTimeout(() => {
       const updateHighlight = () => {
         const element = document.querySelector(step.targetElement);
-        if (element) {
-          const rect = element.getBoundingClientRect();
-          setHighlight({
-            top: rect.top + window.scrollY,
-            left: rect.left + window.scrollX,
-            width: rect.width,
-            height: rect.height,
-          });
-        } else {
+        if (!element) {
           setHighlight(null);
+          return;
         }
+
+        const rect = element.getBoundingClientRect();
+        setHighlight({
+          top: rect.top + window.scrollY,
+          left: rect.left + window.scrollX,
+          width: rect.width,
+          height: rect.height,
+        });
       };
 
       updateHighlight();
@@ -119,20 +180,21 @@ export const OnboardingTutorial: React.FC = () => {
       return () => window.removeEventListener("resize", updateHighlight);
     }, 300);
 
-    return () => clearTimeout(timer);
-  }, [step.targetElement, currentStep]);
+    return () => window.clearTimeout(timer);
+  }, [currentStep, step.targetElement]);
 
   const handleNext = () => {
     if (currentStep < TUTORIAL_STEPS.length - 1) {
-      setCurrentStep(currentStep + 1);
-    } else {
-      markTutorialViewed();
+      setCurrentStep((prev) => prev + 1);
+      return;
     }
+
+    markTutorialViewed();
   };
 
   const handlePrev = () => {
     if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
+      setCurrentStep((prev) => prev - 1);
     }
   };
 
@@ -148,13 +210,11 @@ export const OnboardingTutorial: React.FC = () => {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
       >
-        {/* Overlay opaco que bloqueia interação com fundo */}
         <div
           className="absolute inset-0 bg-black/40 pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         />
 
-        {/* Highlight com spotlight */}
         {highlight && (
           <>
             <motion.div
@@ -181,7 +241,6 @@ export const OnboardingTutorial: React.FC = () => {
               />
             </motion.div>
 
-            {/* Tooltip */}
             <motion.div
               className="fixed max-w-xs bg-white rounded-[24px] shadow-2xl shadow-black/20 p-6 pointer-events-auto"
               initial={{ opacity: 0, y: 12, scale: 0.92 }}
@@ -196,21 +255,16 @@ export const OnboardingTutorial: React.FC = () => {
                     window.innerHeight - (highlight.top + highlight.height);
                   const topSpace = highlight.top;
 
-                  // Se houver espaço abaixo (tooltip + gap)
                   if (bottomSpace >= tooltipHeight + gap) {
                     return highlight.top + highlight.height + gap;
                   }
-                  // Se houver espaço acima (tooltip + gap)
-                  else if (topSpace >= tooltipHeight + gap) {
+                  if (topSpace >= tooltipHeight + gap) {
                     return highlight.top - tooltipHeight - gap;
                   }
-                  // Se não couber em nenhum lugar, centralizar verticalmente
-                  else {
-                    return Math.max(
-                      8,
-                      window.innerHeight / 2 - tooltipHeight / 2,
-                    );
-                  }
+                  return Math.max(
+                    8,
+                    window.innerHeight / 2 - tooltipHeight / 2,
+                  );
                 })(),
                 left: Math.max(
                   16,
@@ -235,7 +289,6 @@ export const OnboardingTutorial: React.FC = () => {
                 </div>
               </div>
 
-              {/* Progress */}
               <div className="flex items-center gap-2 mb-4">
                 {TUTORIAL_STEPS.map((_, idx) => (
                   <div
@@ -247,7 +300,6 @@ export const OnboardingTutorial: React.FC = () => {
                 ))}
               </div>
 
-              {/* Controls */}
               <div className="flex items-center justify-between gap-3">
                 <button
                   type="button"

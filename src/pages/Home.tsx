@@ -27,6 +27,36 @@ export const Home: React.FC = () => {
   const { bikes, expenses, tasks, userProfile, tutorialViewed, startTutorial } =
     useApp();
   const location = useLocation();
+  const isTutorialMode =
+    new URLSearchParams(location.search).get("tutorial") === "1";
+
+  const tutorialBike = {
+    id: "tutorial-bike",
+    name: "YAMAHA YZF R-3 321/ABS",
+    model: "YZF R-3 321/ABS",
+    year: 2021,
+    currentKm: 100,
+    photoUrl: "/icons/motoTutorial.jpg",
+    purchasePrice: 26317,
+    isFavorite: true,
+  };
+
+  const tutorialExpense = {
+    id: "tutorial-expense",
+    bikeId: "tutorial-bike",
+    type: "Combustivel" as const,
+    date: "2026-04-09",
+    amount: 25,
+    km: 100,
+    liters: 3,
+    notes: "Abastecimento tutorial",
+  };
+
+  const displayBikes = isTutorialMode ? [tutorialBike, ...bikes] : bikes;
+  const displayExpenses = isTutorialMode
+    ? [tutorialExpense, ...expenses]
+    : expenses;
+
   const locationState = location.state as {
     fromProfileComplete?: boolean;
   } | null;
@@ -36,21 +66,24 @@ export const Home: React.FC = () => {
     const fromProfileComplete =
       locationState?.fromProfileComplete ||
       sessionStorage.getItem("fromProfileComplete") === "true";
+    const hasAutoTutorialStarted =
+      sessionStorage.getItem("autoTutorialStarted") === "true";
 
-    if (fromProfileComplete && !tutorialViewed) {
-      startTutorial();
+    if (fromProfileComplete && !tutorialViewed && !hasAutoTutorialStarted) {
+      startTutorial(false);
       sessionStorage.removeItem("fromProfileComplete");
+      sessionStorage.setItem("autoTutorialStarted", "true");
     }
   }, [locationState?.fromProfileComplete, tutorialViewed, startTutorial]);
 
-  const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalSpent = displayExpenses.reduce((sum, e) => sum + e.amount, 0);
   const activeTasks = tasks.filter((t) => !t.completed);
-  const preferredBikeWithTask = bikes.find(
+  const preferredBikeWithTask = displayBikes.find(
     (bike) =>
       bike.isFavorite && activeTasks.some((task) => task.bikeId === bike.id),
   );
   const resolveBikeId = preferredBikeWithTask?.id || activeTasks[0]?.bikeId;
-  const recentExpenses = [...expenses]
+  const recentExpenses = [...displayExpenses]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 3);
 
@@ -104,7 +137,7 @@ export const Home: React.FC = () => {
               <p className="text-blue-100 text-[10px] font-bold uppercase tracking-wider mb-1">
                 Motos
               </p>
-              <p className="text-lg font-bold">{bikes.length}</p>
+              <p className="text-lg font-bold">{displayBikes.length}</p>
             </div>
             <div className="w-px h-8 bg-white/20" />
             <div>
@@ -212,7 +245,7 @@ export const Home: React.FC = () => {
                     {format(new Date(expense.date), "dd/MM/yyyy", {
                       locale: ptBR,
                     })}{" "}
-                    - {bikes.find((b) => b.id === expense.bikeId)?.name}
+                    - {displayBikes.find((b) => b.id === expense.bikeId)?.name}
                   </p>
                 </div>
                 <div className="text-right">

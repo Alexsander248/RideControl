@@ -12,7 +12,8 @@ import {
 } from "react-router-dom";
 import { AppProvider, useApp } from "./context/AppContext";
 import { Layout } from "./components/Layout";
-import { OnboardingTutorial } from "./components/OnboardingTutorial";
+import { OnboardingTutorial } from "./components/OnboardingTutorial.tsx";
+import { TutorialWelcome } from "./components/TutorialWelcome";
 import { Home } from "./pages/Home";
 import { Garage } from "./pages/Garage";
 import { BikeDetails } from "./pages/BikeDetails";
@@ -76,6 +77,7 @@ function AppContent() {
           <Route path="adicionar-tarefa" element={<AddTask />} />
         </Route>
       </Routes>
+      <TutorialWelcome />
       {isTutorialActive && <OnboardingTutorial />}
     </>
   );

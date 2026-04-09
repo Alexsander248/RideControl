@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import {
   PieChart,
@@ -36,7 +36,37 @@ import { cn } from "../lib/utils";
 
 export const ExpenseInsights: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { expenses, bikes } = useApp();
+  const isTutorialMode =
+    new URLSearchParams(location.search).get("tutorial") === "1";
+
+  const tutorialBike = {
+    id: "tutorial-bike",
+    name: "YAMAHA YZF R-3 321/ABS",
+    model: "YZF R-3 321/ABS",
+    year: 2021,
+    currentKm: 100,
+    photoUrl: "/icons/motoTutorial.jpg",
+    purchasePrice: 26317,
+    isFavorite: true,
+  };
+
+  const tutorialExpense = {
+    id: "tutorial-expense",
+    bikeId: "tutorial-bike",
+    type: "Combustivel" as const,
+    date: "2026-04-09",
+    amount: 25,
+    km: 100,
+    liters: 3,
+    notes: "Abastecimento tutorial",
+  };
+
+  const sourceBikes = isTutorialMode ? [tutorialBike, ...bikes] : bikes;
+  const sourceExpenses = isTutorialMode
+    ? [tutorialExpense, ...expenses]
+    : expenses;
   const [timeFilter, setTimeFilter] = useState<
     "Este Ano" | "Ano Passado" | "Todo Período"
   >("Este Ano");
@@ -55,7 +85,7 @@ export const ExpenseInsights: React.FC = () => {
 
   const filteredExpenses = useMemo(() => {
     const now = new Date();
-    let filtered = expenses;
+    let filtered = sourceExpenses;
 
     if (selectedBikeId) {
       filtered = filtered.filter(
@@ -76,7 +106,7 @@ export const ExpenseInsights: React.FC = () => {
     return filtered.filter((expense) =>
       isWithinInterval(new Date(expense.date), interval),
     );
-  }, [expenses, timeFilter, selectedBikeId]);
+  }, [sourceExpenses, timeFilter, selectedBikeId]);
 
   const categoryData = useMemo(() => {
     const categories: Record<string, number> = {
@@ -165,7 +195,8 @@ export const ExpenseInsights: React.FC = () => {
   }, [fuelExpenses]);
 
   const latestFuelBikeName = latestFuelExpense
-    ? bikes.find((bike) => bike.id === latestFuelExpense.bikeId)?.name || ""
+    ? sourceBikes.find((bike) => bike.id === latestFuelExpense.bikeId)?.name ||
+      ""
     : "";
 
   const costPerKm = totalKm > 0 ? totalSpent / totalKm : 0;
@@ -221,7 +252,7 @@ export const ExpenseInsights: React.FC = () => {
               className="appearance-none w-full bg-white border border-gray-100 rounded-2xl px-5 py-3 pr-10 font-bold text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             >
               <option value="">Todas as motos</option>
-              {bikes.map((bike) => (
+              {sourceBikes.map((bike) => (
                 <option key={bike.id} value={bike.id}>
                   {bike.name}
                 </option>

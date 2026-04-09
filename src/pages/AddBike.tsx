@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ArrowLeft, Camera, Save } from "lucide-react";
 import { getOptimizedImageDataUrl } from "../lib/image";
@@ -26,14 +26,17 @@ const validateYear = (year: number): number => {
 
 export const AddBike: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { addBike } = useApp();
+  const isTutorialMode = searchParams.get("tutorial") === "1";
+
   const [formData, setFormData] = useState({
-    name: "",
-    model: "",
-    year: new Date().getFullYear(),
+    name: isTutorialMode ? "YAMAHA YZF R-3 321/ABS" : "",
+    model: isTutorialMode ? "YZF R-3 321/ABS" : "",
+    year: isTutorialMode ? 2021 : new Date().getFullYear(),
     currentKm: 0,
-    photoUrl: "",
-    purchasePrice: 0,
+    photoUrl: isTutorialMode ? "/icons/motoTutorial.jpg" : "",
+    purchasePrice: isTutorialMode ? 26317 : 0,
   });
   const [nameSuggestions, setNameSuggestions] = useState<
     MotorcycleSuggestion[]
@@ -48,6 +51,12 @@ export const AddBike: React.FC = () => {
   const [isLoadingPrice, setIsLoadingPrice] = useState(false);
 
   useEffect(() => {
+    if (isTutorialMode) {
+      setNameSuggestions([]);
+      setIsLoadingSuggestions(false);
+      return;
+    }
+
     const query = formData.name.trim();
     if (query.length < 2) {
       setNameSuggestions([]);
@@ -79,7 +88,7 @@ export const AddBike: React.FC = () => {
       isCancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [formData.name]);
+  }, [formData.name, isTutorialMode]);
 
   const applySelectedYearPrice = async (
     fipeModel: SelectedFipeModel,
@@ -189,6 +198,12 @@ export const AddBike: React.FC = () => {
         alert("Nome e Modelo são obrigatórios");
         return;
       }
+
+      if (isTutorialMode) {
+        navigate("/garagem?tutorial=1");
+        return;
+      }
+
       addBike(formData);
       navigate("/garagem");
     } catch (error) {
@@ -210,7 +225,7 @@ export const AddBike: React.FC = () => {
   };
 
   return (
-    <div className="p-6 pb-32">
+    <div className="tutorial-add-bike p-6 pb-32">
       <header className="flex items-center gap-4 mb-8">
         <button
           onClick={() => navigate(-1)}

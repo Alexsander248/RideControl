@@ -16,22 +16,50 @@ export const AddExpense: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { bikes, addExpense } = useApp();
+  const isTutorialMode = searchParams.get("tutorial") === "1";
+
+  const tutorialBike = bikes.find(
+    (bike) =>
+      bike.name === "YAMAHA YZF R-3 321/ABS" &&
+      bike.model === "YZF R-3 321/ABS",
+  );
+
+  const tutorialBikeOption = {
+    id: "tutorial-bike",
+    name: "YAMAHA YZF R-3 321/ABS",
+    currentKm: 100,
+  };
+
+  const bikeOptions = isTutorialMode
+    ? [
+        tutorialBikeOption,
+        ...bikes.filter((b) => b.id !== tutorialBikeOption.id),
+      ]
+    : bikes;
 
   const initialBikeId =
-    searchParams.get("bikeId") || (bikes.length > 0 ? bikes[0].id : "");
+    searchParams.get("bikeId") ||
+    tutorialBike?.id ||
+    (bikeOptions.length > 0 ? bikeOptions[0].id : "");
   const initialType =
     (searchParams.get("type") as ExpenseCategory) || "Combustivel";
 
   const [formData, setFormData] = useState({
     bikeId: initialBikeId,
     type: initialType,
-    date: new Date().toISOString().split("T")[0],
-    amount: 0,
-    km: bikes.find((b) => b.id === initialBikeId)?.currentKm || 0,
-    liters: 0,
-    notes: "",
+    date: isTutorialMode
+      ? "2026-04-09"
+      : new Date().toISOString().split("T")[0],
+    amount: isTutorialMode ? 25 : 0,
+    km: isTutorialMode
+      ? 100
+      : bikes.find((b) => b.id === initialBikeId)?.currentKm || 0,
+    liters: isTutorialMode ? 3 : 0,
+    notes: isTutorialMode ? "Abastecimento tutorial" : "",
   });
-  const [amountInput, setAmountInput] = useState("");
+  const [amountInput, setAmountInput] = useState(
+    isTutorialMode ? "R$ 25,00" : "",
+  );
 
   const formatBrlCurrency = (value: number) =>
     new Intl.NumberFormat("pt-BR", {
@@ -73,16 +101,22 @@ export const AddExpense: React.FC = () => {
       alert("Preencha uma motocicleta e um valor maior que zero.");
       return;
     }
+
+    if (isTutorialMode) {
+      navigate("/diagnostico?tutorial=1");
+      return;
+    }
+
     addExpense(formData as any);
     navigate(`/moto/${formData.bikeId}`);
   };
 
   const getBikeCurrentKm = (bikeId: string) => {
-    return bikes.find((bike) => bike.id === bikeId)?.currentKm || 0;
+    return bikeOptions.find((bike) => bike.id === bikeId)?.currentKm || 0;
   };
 
   return (
-    <div className="p-6 pb-32">
+    <div className="tutorial-add-expense p-6 pb-32">
       <header className="flex items-center gap-4 mb-8">
         <button
           onClick={() => navigate(-1)}
@@ -111,7 +145,7 @@ export const AddExpense: React.FC = () => {
                       type: cat.id as ExpenseCategory,
                     })
                   }
-                  className="w-full flex flex-col items-center gap-2 min-w-0"
+                  className={`w-full flex flex-col items-center gap-2 min-w-0 tutorial-expense-category-${cat.id}`}
                 >
                   <div
                     className={cn(
@@ -157,7 +191,7 @@ export const AddExpense: React.FC = () => {
                 }}
               >
                 <option value="">Selecione uma moto</option>
-                {bikes.map((b) => (
+                {bikeOptions.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
                   </option>

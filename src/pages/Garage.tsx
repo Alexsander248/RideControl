@@ -1,12 +1,29 @@
 ﻿import React from "react";
 import { useApp } from "../context/AppContext";
 import { Plus, ChevronRight, Gauge, Star } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { motion } from "motion/react";
 
 export const Garage: React.FC = () => {
   const { bikes } = useApp();
-  const sortedBikes = [...bikes].sort((a, b) => {
+  const location = useLocation();
+  const isTutorialMode =
+    new URLSearchParams(location.search).get("tutorial") === "1";
+
+  const tutorialBike = {
+    id: "tutorial-bike",
+    name: "YAMAHA YZF R-3 321/ABS",
+    model: "YZF R-3 321/ABS",
+    year: 2021,
+    currentKm: 100,
+    photoUrl: "/icons/motoTutorial.jpg",
+    purchasePrice: 26317,
+    isFavorite: true,
+  };
+
+  const displayBikes = isTutorialMode ? [tutorialBike, ...bikes] : bikes;
+
+  const sortedBikes = [...displayBikes].sort((a, b) => {
     if (Boolean(a.isFavorite) === Boolean(b.isFavorite)) return 0;
     return a.isFavorite ? -1 : 1;
   });
@@ -20,7 +37,7 @@ export const Garage: React.FC = () => {
         </div>
         <Link
           to="/adicionar-moto"
-          className="bg-blue-500 text-white p-3 rounded-2xl shadow-lg shadow-blue-200 transition-transform active:scale-95"
+          className="tutorial-garagem-add bg-blue-500 text-white p-3 rounded-2xl shadow-lg shadow-blue-200 transition-transform active:scale-95"
         >
           <Plus size={24} />
         </Link>

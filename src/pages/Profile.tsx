@@ -76,7 +76,7 @@ export const Profile: React.FC = () => {
       icon: BookOpen,
       label: "Tutorial",
       color: "bg-green-50",
-      action: startTutorial,
+      action: () => startTutorial(true),
     },
   ];
 

@@ -11,6 +11,8 @@ import {
 interface AppContextType extends AppState {
   isProfileComplete: boolean;
   isTutorialActive: boolean;
+  isTutorialWelcomeOpen: boolean;
+  isTutorialWelcomeSkippable: boolean;
   addBike: (bike: Omit<Bike, "id">) => void;
   updateBike: (bike: Bike) => void;
   toggleFavoriteBike: (id: string) => void;
@@ -23,7 +25,9 @@ interface AppContextType extends AppState {
   updateUserProfile: (profile: Partial<UserProfile>) => void;
   updateNotificationSettings: (settings: Partial<NotificationSettings>) => void;
   markTutorialViewed: () => void;
-  startTutorial: () => void;
+  startTutorial: (allowSkip?: boolean) => void;
+  beginTutorial: () => void;
+  closeTutorialWelcome: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -113,6 +117,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   });
 
   const [isTutorialActive, setIsTutorialActive] = useState(false);
+  const [isTutorialWelcomeOpen, setIsTutorialWelcomeOpen] = useState(false);
+  const [isTutorialWelcomeSkippable, setIsTutorialWelcomeSkippable] =
+    useState(true);
 
   useEffect(() => {
     try {
@@ -261,11 +268,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       ...prev,
       tutorialViewed: true,
     }));
+    setIsTutorialWelcomeOpen(false);
+    setIsTutorialActive(false);
+    setIsTutorialWelcomeSkippable(true);
+  };
+
+  const startTutorial = (allowSkip = true) => {
+    setIsTutorialWelcomeSkippable(allowSkip);
+    setIsTutorialWelcomeOpen(true);
     setIsTutorialActive(false);
   };
 
-  const startTutorial = () => {
+  const beginTutorial = () => {
+    setIsTutorialWelcomeOpen(false);
     setIsTutorialActive(true);
+    setIsTutorialWelcomeSkippable(true);
+  };
+
+  const closeTutorialWelcome = () => {
+    setIsTutorialWelcomeOpen(false);
+    setIsTutorialActive(false);
+    setIsTutorialWelcomeSkippable(true);
   };
 
   const isProfileComplete = state.userProfile.name.trim().length > 0;
@@ -276,6 +299,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         ...state,
         isProfileComplete,
         isTutorialActive,
+        isTutorialWelcomeOpen,
+        isTutorialWelcomeSkippable,
         addBike,
         updateBike,
         toggleFavoriteBike,
@@ -289,6 +314,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         updateNotificationSettings,
         markTutorialViewed,
         startTutorial,
+        beginTutorial,
+        closeTutorialWelcome,
       }}
     >
       {children}
