@@ -3,7 +3,6 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import {
   ArrowLeft,
-  Plus,
   Settings,
   Wrench,
   Fuel,
@@ -151,25 +150,28 @@ export const BikeDetails: React.FC = () => {
         </div>
 
         {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-3 mb-10">
-          <Link
-            to={`/adicionar-gasto?bikeId=${bike.id}`}
-            className="bg-blue-500 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-200 transition-transform active:scale-95"
-          >
-            <span>Adicionar Gastos</span>
-          </Link>
-          <Link
-            to={`/adicionar-tarefa?bikeId=${bike.id}`}
-            className="bg-red-600 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-red-200 transition-transform active:scale-95"
-          >
-            <span>Adicionar Tarefas</span>
-          </Link>
+        <div className="mb-10 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Link
+              to={`/adicionar-gasto?bikeId=${bike.id}`}
+              className="bg-blue-50 text-blue-700 h-12 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 border border-blue-100 transition-transform active:scale-95"
+            >
+              <span> + Gastos</span>
+            </Link>
+            <Link
+              to={`/adicionar-tarefa?bikeId=${bike.id}`}
+              className="bg-rose-50 text-rose-700 h-12 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 border border-rose-100 transition-transform active:scale-95"
+            >
+              <span> + Tarefa</span>
+            </Link>
+          </div>
+
           <Link
             to={`/moto/${bike.id}/tarefas`}
-            className="col-span-2 bg-rose-600 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-rose-200 transition-transform active:scale-95"
+            className="w-full bg-white text-gray-700 h-11 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 border border-gray-200 transition-transform active:scale-95"
           >
-            <ClipboardList size={20} />
-            <span>Tarefas</span>
+            <ClipboardList size={16} />
+            <span>Ver tarefas</span>
           </Link>
         </div>
 
