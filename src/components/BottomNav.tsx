@@ -44,7 +44,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 onClick={onQuickAction}
                 disabled={disabled}
                 className={cn(
-                  "p-4 rounded-full -mt-12 transform transition-transform",
+                  "tutorial-quick-action p-4 rounded-full -mt-12 transform transition-transform",
                   disabled
                     ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                     : "bg-blue-500 text-white shadow-lg shadow-blue-200 active:scale-95",

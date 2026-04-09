@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+﻿import React, { useEffect } from "react";
 import { useApp } from "../context/AppContext";
 import {
   Fuel,
@@ -7,15 +7,14 @@ import {
   TrendingUp,
   ChevronRight,
   AlertCircle,
-  CheckCircle2,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "../lib/utils";
 
-const DEFAULT_PROFILE_PHOTO = "https://picsum.photos/seed/rider/200/200";
+const DEFAULT_PROFILE_PHOTO = "/icons/perfil.png";
 const EXPENSE_TYPE_LABELS: Record<string, string> = {
   Combustivel: "Combustível",
   Manutencao: "Manutenção",
@@ -25,11 +24,24 @@ const EXPENSE_TYPE_LABELS: Record<string, string> = {
 };
 
 export const Home: React.FC = () => {
-  const { bikes, expenses, tasks, userProfile } = useApp();
-  const location = useLocation<{ fromProfileComplete?: boolean }>();
-  const [showProfileCompleteBanner, setShowProfileCompleteBanner] = useState(
-    Boolean(location.state?.fromProfileComplete),
-  );
+  const { bikes, expenses, tasks, userProfile, tutorialViewed, startTutorial } =
+    useApp();
+  const location = useLocation();
+  const locationState = location.state as {
+    fromProfileComplete?: boolean;
+  } | null;
+
+  useEffect(() => {
+    // Verificar se vem do cadastro completo
+    const fromProfileComplete =
+      locationState?.fromProfileComplete ||
+      sessionStorage.getItem("fromProfileComplete") === "true";
+
+    if (fromProfileComplete && !tutorialViewed) {
+      startTutorial();
+      sessionStorage.removeItem("fromProfileComplete");
+    }
+  }, [locationState?.fromProfileComplete, tutorialViewed, startTutorial]);
 
   const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
   const activeTasks = tasks.filter((t) => !t.completed);
@@ -42,65 +54,23 @@ export const Home: React.FC = () => {
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 3);
 
-  useEffect(() => {
-    if (!showProfileCompleteBanner) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setShowProfileCompleteBanner(false);
-    }, 2400);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [showProfileCompleteBanner]);
-
   return (
     <motion.div
       className="p-6 pb-24"
-      initial={
-        showProfileCompleteBanner ? { opacity: 0, y: 18, scale: 0.985 } : false
-      }
+      initial={{ opacity: 0, y: 18, scale: 0.985 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.45, ease: "easeOut" }}
     >
-      <AnimatePresence>
-        {showProfileCompleteBanner && (
-          <motion.div
-            className="mb-6 rounded-[28px] bg-gradient-to-r from-emerald-500 via-blue-500 to-sky-500 text-white p-4 shadow-2xl shadow-blue-200 overflow-hidden relative"
-            initial={{ opacity: 0, y: -18, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.98 }}
-            transition={{ duration: 0.35, ease: "easeOut" }}
-          >
-            <div className="absolute -right-8 -top-8 w-28 h-28 bg-white/15 rounded-full blur-xl" />
-            <div className="absolute -left-6 -bottom-10 w-24 h-24 bg-white/10 rounded-full blur-xl" />
-            <div className="relative z-10 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
-                <CheckCircle2 size={28} />
-              </div>
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.28em] text-white/85">
-                  Perfil concluído
-                </p>
-                <p className="font-bold">
-                  Seu painel já abriu com tudo pronto para começar.
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <header className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Painel</h1>
           <p className="text-gray-500 font-medium">
-            Bem-vindo de volta, {userProfile.name.split(" ")[0]}!
+            Bem-vindo, {userProfile.name.split(" ")[0]}!
           </p>
         </div>
         <Link
           to="/perfil"
-          className="w-16 h-16 rounded-[22px] bg-gray-200 overflow-hidden block transition-transform active:scale-95 ring-2 ring-blue-50"
+          className="tutorial-perfil w-16 h-16 rounded-[22px] bg-gray-200 overflow-hidden block transition-transform active:scale-95 ring-2 ring-blue-50"
           aria-label="Ir para perfil"
         >
           <img
@@ -113,8 +83,8 @@ export const Home: React.FC = () => {
 
       {/* Main Stats */}
       <motion.div
-        className="bg-blue-500 rounded-[40px] p-8 text-white shadow-2xl shadow-blue-200 mb-8 relative overflow-hidden"
-        initial={showProfileCompleteBanner ? { opacity: 0, y: 16 } : false}
+        className="tutorial-painel bg-blue-500 rounded-[40px] p-8 text-white shadow-2xl shadow-blue-200 mb-8 relative overflow-hidden"
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45, ease: "easeOut", delay: 0.06 }}
       >
@@ -154,13 +124,13 @@ export const Home: React.FC = () => {
       {/* Quick Stats Grid */}
       <motion.div
         className="grid grid-cols-2 gap-4 mb-8"
-        initial={showProfileCompleteBanner ? { opacity: 0, y: 16 } : false}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut", delay: 0.12 }}
       >
         <Link
           to="/diagnostico"
-          className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-50 flex flex-col gap-3"
+          className="tutorial-diagnostico bg-white p-6 rounded-[32px] shadow-sm border border-gray-50 flex flex-col gap-3"
         >
           <div className="bg-orange-50 w-10 h-10 rounded-xl flex items-center justify-center text-orange-500">
             <TrendingUp size={20} />
@@ -174,7 +144,7 @@ export const Home: React.FC = () => {
         </Link>
         <Link
           to="/garagem"
-          className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-50 flex flex-col gap-3"
+          className="tutorial-garagem bg-white p-6 rounded-[32px] shadow-sm border border-gray-50 flex flex-col gap-3"
         >
           <div className="bg-blue-50 w-10 h-10 rounded-xl flex items-center justify-center text-blue-500">
             <Gauge size={20} />
@@ -191,7 +161,7 @@ export const Home: React.FC = () => {
       {/* Recent Activity */}
       <motion.section
         className="mb-8"
-        initial={showProfileCompleteBanner ? { opacity: 0, y: 16 } : false}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut", delay: 0.18 }}
       >
@@ -270,7 +240,7 @@ export const Home: React.FC = () => {
       {/* Maintenance Alerts */}
       {activeTasks.length > 0 && (
         <motion.section
-          initial={showProfileCompleteBanner ? { opacity: 0, y: 16 } : false}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: "easeOut", delay: 0.24 }}
         >

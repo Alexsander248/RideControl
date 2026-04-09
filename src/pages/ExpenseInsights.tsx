@@ -201,7 +201,7 @@ export const ExpenseInsights: React.FC = () => {
   };
 
   return (
-    <div className="p-6 pb-24 relative">
+    <div className="tutorial-diagnostico p-6 pb-24 relative">
       <header className="mb-8">
         <div className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight">Diagnóstico</h1>

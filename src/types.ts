@@ -58,4 +58,5 @@ export interface AppState {
   tasks: MaintenanceTask[];
   userProfile: UserProfile;
   notificationSettings: NotificationSettings;
+  tutorialViewed: boolean;
 }

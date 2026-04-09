@@ -10,6 +10,7 @@ import {
 
 interface AppContextType extends AppState {
   isProfileComplete: boolean;
+  isTutorialActive: boolean;
   addBike: (bike: Omit<Bike, "id">) => void;
   updateBike: (bike: Bike) => void;
   toggleFavoriteBike: (id: string) => void;
@@ -19,13 +20,15 @@ interface AppContextType extends AppState {
   toggleTask: (id: string) => void;
   updateUserProfile: (profile: Partial<UserProfile>) => void;
   updateNotificationSettings: (settings: Partial<NotificationSettings>) => void;
+  markTutorialViewed: () => void;
+  startTutorial: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const STORAGE_KEY = "motocontrol_data";
 const INSTALL_YEAR_KEY = "ridecontrol_install_year";
-const DEFAULT_PROFILE_PHOTO = "https://picsum.photos/seed/rider/200/200";
+const DEFAULT_PROFILE_PHOTO = "/icons/perfil.png";
 const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   taskDueSoonEnabled: true,
   daysBefore: 3,
@@ -66,6 +69,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         tasks: [],
         userProfile: defaultProfile,
         notificationSettings: DEFAULT_NOTIFICATION_SETTINGS,
+        tutorialViewed: false,
       };
     }
 
@@ -92,6 +96,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           ...DEFAULT_NOTIFICATION_SETTINGS,
           ...(parsed.notificationSettings || {}),
         },
+        tutorialViewed: Boolean(parsed.tutorialViewed),
       };
     } catch {
       return {
@@ -100,9 +105,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         tasks: [],
         userProfile: defaultProfile,
         notificationSettings: DEFAULT_NOTIFICATION_SETTINGS,
+        tutorialViewed: false,
       };
     }
   });
+
+  const [isTutorialActive, setIsTutorialActive] = useState(false);
 
   useEffect(() => {
     try {
@@ -206,6 +214,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     }));
   };
 
+  const markTutorialViewed = () => {
+    setState((prev) => ({
+      ...prev,
+      tutorialViewed: true,
+    }));
+    setIsTutorialActive(false);
+  };
+
+  const startTutorial = () => {
+    setIsTutorialActive(true);
+  };
+
   const isProfileComplete = state.userProfile.name.trim().length > 0;
 
   return (
@@ -213,6 +233,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       value={{
         ...state,
         isProfileComplete,
+        isTutorialActive,
         addBike,
         updateBike,
         toggleFavoriteBike,
@@ -222,6 +243,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         toggleTask,
         updateUserProfile,
         updateNotificationSettings,
+        markTutorialViewed,
+        startTutorial,
       }}
     >
       {children}

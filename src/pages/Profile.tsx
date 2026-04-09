@@ -1,11 +1,11 @@
 ﻿import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
-import { User, Bell, Moon, LogOut, ChevronRight, Settings } from "lucide-react";
+import { User, Bell, Moon, LogOut, ChevronRight, BookOpen } from "lucide-react";
 import { cn } from "../lib/utils";
 import { ImageViewerModal } from "../components/ImageViewerModal";
 
-const DEFAULT_PROFILE_PHOTO = "https://picsum.photos/seed/rider/200/200";
+const DEFAULT_PROFILE_PHOTO = "/icons/perfil.png";
 
 type MenuItem = {
   icon: React.ComponentType<{ size?: number; className?: string }>;
@@ -13,10 +13,11 @@ type MenuItem = {
   color: string;
   isToggle?: boolean;
   path?: string;
+  action?: () => void;
 };
 
 export const Profile: React.FC = () => {
-  const { bikes, userProfile } = useApp();
+  const { bikes, userProfile, startTutorial } = useApp();
   const navigate = useNavigate();
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isPhotoViewerOpen, setIsPhotoViewerOpen] = useState(false);
@@ -48,7 +49,12 @@ export const Profile: React.FC = () => {
       path: "/perfil/notificacoes",
     },
     { icon: Moon, label: "Modo escuro", color: "bg-purple-50", isToggle: true },
-    { icon: Settings, label: "Configurações do app", color: "bg-gray-50" },
+    {
+      icon: BookOpen,
+      label: "Tutorial",
+      color: "bg-green-50",
+      action: startTutorial,
+    },
   ];
 
   return (
@@ -82,6 +88,11 @@ export const Profile: React.FC = () => {
             onClick={() => {
               if (item.isToggle) {
                 setIsDarkMode((prev) => !prev);
+                return;
+              }
+
+              if (item.action) {
+                item.action();
                 return;
               }
 

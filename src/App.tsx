@@ -10,8 +10,9 @@ import {
   Navigate,
   useParams,
 } from "react-router-dom";
-import { AppProvider } from "./context/AppContext";
+import { AppProvider, useApp } from "./context/AppContext";
 import { Layout } from "./components/Layout";
+import { OnboardingTutorial } from "./components/OnboardingTutorial";
 import { Home } from "./pages/Home";
 import { Garage } from "./pages/Garage";
 import { BikeDetails } from "./pages/BikeDetails";
@@ -30,45 +31,56 @@ function LegacyBikeRedirect() {
   return <Navigate to={id ? `/moto/${id}` : "/garagem"} replace />;
 }
 
+function AppContent() {
+  const { isTutorialActive } = useApp();
+
+  return (
+    <>
+      <Routes>
+        <Route path="/garage" element={<Navigate to="/garagem" replace />} />
+        <Route path="/bike/:id" element={<LegacyBikeRedirect />} />
+        <Route
+          path="/diagnose"
+          element={<Navigate to="/diagnostico" replace />}
+        />
+        <Route path="/profile" element={<Navigate to="/perfil" replace />} />
+        <Route
+          path="/add-bike"
+          element={<Navigate to="/adicionar-moto" replace />}
+        />
+        <Route
+          path="/add-expense"
+          element={<Navigate to="/adicionar-gasto" replace />}
+        />
+        <Route
+          path="/add-task"
+          element={<Navigate to="/adicionar-tarefa" replace />}
+        />
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Home />} />
+          <Route path="garagem" element={<Garage />} />
+          <Route path="moto/:id" element={<BikeDetails />} />
+          <Route path="moto/:id/tarefas" element={<BikeTasks />} />
+          <Route path="moto/:id/editar" element={<EditBike />} />
+          <Route path="diagnostico" element={<ExpenseInsights />} />
+          <Route path="perfil" element={<Profile />} />
+          <Route path="perfil/informacoes" element={<PersonalInfo />} />
+          <Route path="perfil/notificacoes" element={<Notifications />} />
+          <Route path="adicionar-moto" element={<AddBike />} />
+          <Route path="adicionar-gasto" element={<AddExpense />} />
+          <Route path="adicionar-tarefa" element={<AddTask />} />
+        </Route>
+      </Routes>
+      {isTutorialActive && <OnboardingTutorial />}
+    </>
+  );
+}
+
 export default function App() {
   return (
     <AppProvider>
       <BrowserRouter>
-        <Routes>
-          <Route path="/garage" element={<Navigate to="/garagem" replace />} />
-          <Route path="/bike/:id" element={<LegacyBikeRedirect />} />
-          <Route
-            path="/diagnose"
-            element={<Navigate to="/diagnostico" replace />}
-          />
-          <Route path="/profile" element={<Navigate to="/perfil" replace />} />
-          <Route
-            path="/add-bike"
-            element={<Navigate to="/adicionar-moto" replace />}
-          />
-          <Route
-            path="/add-expense"
-            element={<Navigate to="/adicionar-gasto" replace />}
-          />
-          <Route
-            path="/add-task"
-            element={<Navigate to="/adicionar-tarefa" replace />}
-          />
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Home />} />
-            <Route path="garagem" element={<Garage />} />
-            <Route path="moto/:id" element={<BikeDetails />} />
-            <Route path="moto/:id/tarefas" element={<BikeTasks />} />
-            <Route path="moto/:id/editar" element={<EditBike />} />
-            <Route path="diagnostico" element={<ExpenseInsights />} />
-            <Route path="perfil" element={<Profile />} />
-            <Route path="perfil/informacoes" element={<PersonalInfo />} />
-            <Route path="perfil/notificacoes" element={<Notifications />} />
-            <Route path="adicionar-moto" element={<AddBike />} />
-            <Route path="adicionar-gasto" element={<AddExpense />} />
-            <Route path="adicionar-tarefa" element={<AddTask />} />
-          </Route>
-        </Routes>
+        <AppContent />
       </BrowserRouter>
     </AppProvider>
   );

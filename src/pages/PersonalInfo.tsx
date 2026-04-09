@@ -5,7 +5,7 @@ import { ArrowLeft, Camera, CheckCircle2, Sparkles, Save } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { getOptimizedImageDataUrl } from "../lib/image";
 
-const DEFAULT_PROFILE_PHOTO = "https://picsum.photos/seed/rider/200/200";
+const DEFAULT_PROFILE_PHOTO = "/icons/perfil.png";
 
 export const PersonalInfo: React.FC = () => {
   const navigate = useNavigate();
@@ -53,6 +53,7 @@ export const PersonalInfo: React.FC = () => {
     setIsCompletingProfile(true);
 
     window.setTimeout(() => {
+      sessionStorage.setItem("fromProfileComplete", "true");
       navigate("/", {
         replace: true,
         state: { fromProfileComplete: true },

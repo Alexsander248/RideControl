@@ -26,7 +26,7 @@ export const Garage: React.FC = () => {
         </Link>
       </header>
 
-      <div className="space-y-4">
+      <div className="tutorial-garagem space-y-4">
         {sortedBikes.length === 0 ? (
           <div className="bg-white rounded-[32px] p-12 text-center border-2 border-dashed border-gray-100">
             <div className="bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-blue-500">
