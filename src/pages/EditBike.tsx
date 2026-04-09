@@ -122,6 +122,7 @@ export const EditBike: React.FC = () => {
       name: suggestion.name,
       model: suggestion.model,
       purchasePrice: 0,
+      year: new Date().getFullYear(),
     }));
     setShowSuggestions(false);
     setSelectedFipeModel(fipeModel);
@@ -142,7 +143,10 @@ export const EditBike: React.FC = () => {
           options.find((item) => item.year === currentYear) || options[0];
 
         setSelectedYearCode(preferredOption.code);
-        setFormData((prev) => ({ ...prev, year: preferredOption.year }));
+        setFormData((prev) => ({
+          ...prev,
+          year: preferredOption.year,
+        }));
         await applySelectedYearPrice(fipeModel, preferredOption.code);
       } else {
         setSelectedYearCode("");
@@ -168,7 +172,14 @@ export const EditBike: React.FC = () => {
 
     setSelectedYearCode(yearCode);
     if (selectedYearOption) {
-      setFormData((prev) => ({ ...prev, year: selectedYearOption.year }));
+      const validYear = selectedYearOption.year;
+      // Valida que o ano está num range válido
+      if (validYear >= 1990 && validYear <= new Date().getFullYear()) {
+        setFormData((prev) => ({ ...prev, year: validYear }));
+      } else {
+        console.warn("Ano inválido retornado pela FIPE:", validYear);
+        setFormData((prev) => ({ ...prev, year: new Date().getFullYear() }));
+      }
     } else {
       setFormData((prev) => ({ ...prev, purchasePrice: 0 }));
     }

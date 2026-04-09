@@ -154,7 +154,14 @@ export const AddBike: React.FC = () => {
 
     setSelectedYearCode(yearCode);
     if (selectedYearOption) {
-      setFormData((prev) => ({ ...prev, year: selectedYearOption.year }));
+      const validYear = selectedYearOption.year;
+      // Valida que o ano está num range válido
+      if (validYear >= 1990 && validYear <= new Date().getFullYear()) {
+        setFormData((prev) => ({ ...prev, year: validYear }));
+      } else {
+        console.warn("Ano inválido retornado pela FIPE:", validYear);
+        setFormData((prev) => ({ ...prev, year: new Date().getFullYear() }));
+      }
     } else {
       setFormData((prev) => ({ ...prev, purchasePrice: 0 }));
     }
