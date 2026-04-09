@@ -190,6 +190,7 @@ export const OnboardingTutorial: React.FC = () => {
     }
 
     markTutorialViewed();
+    navigate("/", { replace: true });
   };
 
   const handlePrev = () => {
@@ -200,6 +201,7 @@ export const OnboardingTutorial: React.FC = () => {
 
   const handleSkip = () => {
     markTutorialViewed();
+    navigate("/", { replace: true });
   };
 
   return (
