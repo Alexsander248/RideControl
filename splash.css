@@ -235,6 +235,18 @@
   overflow: hidden;
 }
 
+.app-splash.is-complete .status-row {
+  display: none;
+}
+
+.app-splash.is-complete .subtitle {
+  opacity: 0;
+  transform: translateY(-6px);
+  max-height: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
 .app-splash.is-complete .complete-row {
   margin-top: 14px;
   max-height: 52px;

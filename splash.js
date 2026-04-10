@@ -52,7 +52,9 @@
       return;
     closed = true;
 
-    setStatus("Carregamento concluído");
+    if (statusText) {
+      statusText.textContent = "";
+    }
     if (progressLabel) {
       progressLabel.textContent = "Concluído";
     }
@@ -75,7 +77,6 @@
   }, splashDurationMs);
   window.setTimeout(() => {
     updateCheckComplete = true;
-    setStatus("Aplicativo pronto");
     setProgress(96);
     closeSplash();
   }, forceCloseMs);
@@ -102,11 +103,8 @@
 
   window.addEventListener(
     "app:update-check-complete",
-    (event) => {
+    () => {
       updateCheckComplete = true;
-      const message =
-        event instanceof CustomEvent ? event.detail?.message : undefined;
-      setStatus(message || "Tudo pronto");
       setProgress(96);
       closeSplash();
     },
