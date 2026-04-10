@@ -13,6 +13,7 @@ export interface Expense {
   amount: number;
   km: number;
   liters?: number;
+  fullTank?: boolean;
   notes?: string;
 }
 

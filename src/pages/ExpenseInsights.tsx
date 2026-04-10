@@ -39,6 +39,7 @@ import {
 
 import { useApp } from "../context/AppContext";
 import { cn } from "../lib/utils";
+import type { Expense } from "../types";
 
 export const ExpenseInsights: React.FC = () => {
   const navigate = useNavigate();
@@ -67,6 +68,7 @@ export const ExpenseInsights: React.FC = () => {
     amount: 25,
     km: 100,
     liters: 3,
+    fullTank: true,
     notes: "Abastecimento tutorial",
   };
 
@@ -292,31 +294,49 @@ export const ExpenseInsights: React.FC = () => {
     [fuelExpenses],
   );
 
-  const fuelDistanceKm = useMemo(() => {
-    if (fuelExpenses.length === 0) return 0;
-
-    const bikeInitialKmMap = new Map(
-      sourceBikes.map((bike) => [bike.id, bike.initialKm ?? bike.currentKm]),
-    );
-    const bikeFuelMap = new Map<string, number[]>();
+  const fuelConsumptionData = useMemo(() => {
+    const byBike = new Map<string, Expense[]>();
 
     fuelExpenses.forEach((expense) => {
-      const kms = bikeFuelMap.get(expense.bikeId) ?? [];
-      kms.push(expense.km);
-      bikeFuelMap.set(expense.bikeId, kms);
+      const bikeExpenses = byBike.get(expense.bikeId) ?? [];
+      bikeExpenses.push(expense);
+      byBike.set(expense.bikeId, bikeExpenses);
     });
 
     let totalDistance = 0;
+    let totalLiters = 0;
+    let fuelStopsCount = 0;
 
-    bikeFuelMap.forEach((kms, bikeId) => {
-      totalDistance += calculateDistanceFromKmReadings(
-        kms,
-        bikeInitialKmMap.get(bikeId),
-      );
+    byBike.forEach((bikeExpenses) => {
+      const orderedExpenses = [...bikeExpenses].sort((a, b) => {
+        const dateDiff =
+          new Date(a.date).getTime() - new Date(b.date).getTime();
+        if (dateDiff !== 0) {
+          return dateDiff;
+        }
+
+        return a.km - b.km;
+      });
+
+      let previousKm: number | null = null;
+
+      orderedExpenses.forEach((expense) => {
+        if (previousKm !== null) {
+          totalDistance += Math.max(0, expense.km - previousKm);
+          totalLiters += expense.liters || 0;
+          fuelStopsCount += 1;
+        }
+
+        previousKm = expense.km;
+      });
     });
 
-    return totalDistance;
-  }, [fuelExpenses, sourceBikes]);
+    return {
+      fuelDistanceKm: totalDistance,
+      totalFuelLiters: totalLiters,
+      fuelStopsCount,
+    };
+  }, [fuelExpenses]);
 
   const latestFuelExpense = useMemo(() => {
     if (fuelExpenses.length === 0) return null;
@@ -333,11 +353,15 @@ export const ExpenseInsights: React.FC = () => {
 
   const costPerKm = totalKm > 0 ? totalSpent / totalKm : 0;
   const consumptionKmPerLiter =
-    totalFuelLiters > 0 ? fuelDistanceKm / totalFuelLiters : 0;
+    fuelConsumptionData.totalFuelLiters > 0
+      ? fuelConsumptionData.fuelDistanceKm / fuelConsumptionData.totalFuelLiters
+      : 0;
   const hasEnoughCostData = totalKm > 0;
-  const fuelStopsCount = fuelExpenses.length;
+  const fuelStopsCount = fuelConsumptionData.fuelStopsCount;
   const hasEnoughFuelData =
-    fuelStopsCount > 0 && fuelDistanceKm > 0 && totalFuelLiters > 0;
+    fuelStopsCount > 1 &&
+    fuelConsumptionData.fuelDistanceKm > 0 &&
+    fuelConsumptionData.totalFuelLiters > 0;
   const avgMonthly = totalSpent / 12;
 
   const COLORS = {
@@ -367,7 +391,7 @@ export const ExpenseInsights: React.FC = () => {
     consumo: {
       title: "Consumo (KM/L)",
       description:
-        "Média de quilômetros por litro no período selecionado. É calculada pela distância percorrida dividida pelos litros abastecidos.",
+        "Média de quilômetros por litro no período selecionado. É calculada entre todos os abastecimentos registrados, em sequência.",
     },
   };
 
@@ -950,9 +974,12 @@ export const ExpenseInsights: React.FC = () => {
                         Distância usada
                       </p>
                       <p className="text-lg font-black text-gray-900">
-                        {fuelDistanceKm.toLocaleString("pt-BR", {
-                          maximumFractionDigits: 1,
-                        })}{" "}
+                        {fuelConsumptionData.fuelDistanceKm.toLocaleString(
+                          "pt-BR",
+                          {
+                            maximumFractionDigits: 1,
+                          },
+                        )}{" "}
                         KM
                       </p>
                     </div>
@@ -962,10 +989,13 @@ export const ExpenseInsights: React.FC = () => {
                         Litros usados
                       </p>
                       <p className="text-lg font-black text-gray-900">
-                        {totalFuelLiters.toLocaleString("pt-BR", {
-                          minimumFractionDigits: 1,
-                          maximumFractionDigits: 2,
-                        })}{" "}
+                        {fuelConsumptionData.totalFuelLiters.toLocaleString(
+                          "pt-BR",
+                          {
+                            minimumFractionDigits: 1,
+                            maximumFractionDigits: 2,
+                          },
+                        )}{" "}
                         L
                       </p>
                     </div>
@@ -977,14 +1007,20 @@ export const ExpenseInsights: React.FC = () => {
                     </p>
                     {hasEnoughFuelData ? (
                       <p className="text-sm font-semibold text-blue-900">
-                        {fuelDistanceKm.toLocaleString("pt-BR", {
-                          maximumFractionDigits: 1,
-                        })}{" "}
+                        {fuelConsumptionData.fuelDistanceKm.toLocaleString(
+                          "pt-BR",
+                          {
+                            maximumFractionDigits: 1,
+                          },
+                        )}{" "}
                         KM ÷{" "}
-                        {totalFuelLiters.toLocaleString("pt-BR", {
-                          minimumFractionDigits: 1,
-                          maximumFractionDigits: 2,
-                        })}{" "}
+                        {fuelConsumptionData.totalFuelLiters.toLocaleString(
+                          "pt-BR",
+                          {
+                            minimumFractionDigits: 1,
+                            maximumFractionDigits: 2,
+                          },
+                        )}{" "}
                         L = {consumptionKmPerLiter.toFixed(1)} KM/L
                       </p>
                     ) : (

@@ -304,34 +304,36 @@ export const ExpenseActivityDetails: React.FC = () => {
           </div>
 
           {formData.type === "Combustivel" && (
-            <div>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
-                Litros
-              </p>
-              {isEditing ? (
-                <input
-                  required
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold"
-                  value={formData.liters === 0 ? "" : formData.liters}
-                  onChange={(e) => {
-                    const value = Number(e.target.value);
-                    setFormData((prev) => ({
-                      ...prev,
-                      liters: Number.isFinite(value) ? value : 0,
-                    }));
-                  }}
-                />
-              ) : (
-                <div className="bg-gray-50 rounded-2xl px-5 py-4 font-bold">
-                  {(expense.liters || 0).toLocaleString("pt-BR", {
-                    maximumFractionDigits: 2,
-                  })}{" "}
-                  L
-                </div>
-              )}
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
+                  Litros
+                </p>
+                {isEditing ? (
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold"
+                    value={formData.liters === 0 ? "" : formData.liters}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      setFormData((prev) => ({
+                        ...prev,
+                        liters: Number.isFinite(value) ? value : 0,
+                      }));
+                    }}
+                  />
+                ) : (
+                  <div className="bg-gray-50 rounded-2xl px-5 py-4 font-bold">
+                    {(expense.liters || 0).toLocaleString("pt-BR", {
+                      maximumFractionDigits: 2,
+                    })}{" "}
+                    L
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

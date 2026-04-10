@@ -254,40 +254,42 @@ export const AddExpense: React.FC = () => {
             </div>
 
             {formData.type === "Combustivel" ? (
-              <div className="grid grid-cols-[0.9fr_1.1fr] gap-4 items-end">
-                <div className="min-w-0">
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
-                    Litros
-                  </label>
-                  <input
-                    required
-                    type="number"
-                    step="0.01"
-                    placeholder="0,00"
-                    className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
-                    value={formData.liters === 0 ? "" : formData.liters}
-                    onChange={(e) => {
-                      const nextLiters = Number(e.target.value);
-                      setFormData({
-                        ...formData,
-                        liters: Number.isNaN(nextLiters) ? 0 : nextLiters,
-                      });
-                    }}
-                  />
-                </div>
-                <div className="min-w-0">
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
-                    Data
-                  </label>
-                  <input
-                    required
-                    type="date"
-                    className="w-full bg-gray-50 border-none rounded-2xl px-4 py-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20"
-                    value={formData.date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, date: e.target.value })
-                    }
-                  />
+              <div className="space-y-4">
+                <div className="grid grid-cols-[0.9fr_1.1fr] gap-4 items-end">
+                  <div className="min-w-0">
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
+                      Litros
+                    </label>
+                    <input
+                      required
+                      type="number"
+                      step="0.01"
+                      placeholder="0,00"
+                      className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
+                      value={formData.liters === 0 ? "" : formData.liters}
+                      onChange={(e) => {
+                        const nextLiters = Number(e.target.value);
+                        setFormData({
+                          ...formData,
+                          liters: Number.isNaN(nextLiters) ? 0 : nextLiters,
+                        });
+                      }}
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
+                      Data
+                    </label>
+                    <input
+                      required
+                      type="date"
+                      className="w-full bg-gray-50 border-none rounded-2xl px-4 py-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20"
+                      value={formData.date}
+                      onChange={(e) =>
+                        setFormData({ ...formData, date: e.target.value })
+                      }
+                    />
+                  </div>
                 </div>
               </div>
             ) : (

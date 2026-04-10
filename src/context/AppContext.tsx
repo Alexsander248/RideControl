@@ -41,6 +41,17 @@ const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   daysBefore: 3,
 };
 
+const generateId = () => {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+};
+
 const getInstallYear = () => {
   const currentYear = new Date().getFullYear();
   const storedInstallYear = Number(localStorage.getItem(INSTALL_YEAR_KEY));
@@ -136,7 +147,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const addBike = (bikeData: Omit<Bike, "id">) => {
     const newBike: Bike = {
       ...bikeData,
-      id: crypto.randomUUID(),
+      id: generateId(),
       initialKm: bikeData.initialKm ?? bikeData.currentKm,
       isFavorite: bikeData.isFavorite ?? false,
     };
@@ -212,7 +223,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const addExpense = (expenseData: Omit<Expense, "id">) => {
-    const newExpense: Expense = { ...expenseData, id: crypto.randomUUID() };
+    const newExpense: Expense = { ...expenseData, id: generateId() };
     setState((prev) => {
       const nextExpenses = [...prev.expenses, newExpense];
       return {
@@ -248,7 +259,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const addTask = (taskData: Omit<MaintenanceTask, "id">) => {
-    const newTask: MaintenanceTask = { ...taskData, id: crypto.randomUUID() };
+    const newTask: MaintenanceTask = { ...taskData, id: generateId() };
     setState((prev) => ({ ...prev, tasks: [...prev.tasks, newTask] }));
   };
 
