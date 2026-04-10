@@ -38,6 +38,7 @@ export const AddBike: React.FC = () => {
     photoUrl: isTutorialMode ? "/icons/motoTutorial.jpg" : "",
     purchasePrice: isTutorialMode ? 26317 : 0,
   });
+  const [currentKmInput, setCurrentKmInput] = useState("0");
   const [nameSuggestions, setNameSuggestions] = useState<
     MotorcycleSuggestion[]
   >([]);
@@ -89,6 +90,12 @@ export const AddBike: React.FC = () => {
       window.clearTimeout(timeoutId);
     };
   }, [formData.name, isTutorialMode]);
+
+  useEffect(() => {
+    setCurrentKmInput(
+      formData.currentKm === 0 ? "0" : String(formData.currentKm),
+    );
+  }, [formData.currentKm]);
 
   const applySelectedYearPrice = async (
     fipeModel: SelectedFipeModel,
@@ -378,17 +385,33 @@ export const AddBike: React.FC = () => {
                 <input
                   required
                   type="number"
+                  min="0"
                   placeholder="0"
                   className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
-                  value={formData.currentKm === 0 ? "" : formData.currentKm}
+                  value={currentKmInput === "0" ? "" : currentKmInput}
+                  onFocus={() => {
+                    if (currentKmInput === "0") {
+                      setCurrentKmInput("");
+                    }
+                  }}
                   onChange={(e) => {
-                    const nextCurrentKm = Number(e.target.value);
+                    const rawValue = e.target.value;
+                    const normalizedValue = rawValue.replace(/^0+(?=\d)/, "");
+                    setCurrentKmInput(normalizedValue);
+
+                    const nextCurrentKm = Number(normalizedValue);
                     setFormData({
                       ...formData,
                       currentKm: Number.isNaN(nextCurrentKm)
                         ? 0
                         : nextCurrentKm,
                     });
+                  }}
+                  onBlur={() => {
+                    if (currentKmInput.trim() === "") {
+                      setCurrentKmInput("0");
+                      setFormData((prev) => ({ ...prev, currentKm: 0 }));
+                    }
                   }}
                 />
               </div>

@@ -15,6 +15,8 @@ import {
 } from "recharts";
 import {
   format,
+  startOfMonth,
+  endOfMonth,
   startOfYear,
   endOfYear,
   subYears,
@@ -67,13 +69,20 @@ export const ExpenseInsights: React.FC = () => {
   const sourceExpenses = isTutorialMode
     ? [tutorialExpense, ...expenses]
     : expenses;
-  const [timeFilter, setTimeFilter] = useState<
-    "Este Ano" | "Ano Passado" | "Todo Período"
-  >("Este Ano");
   const [selectedBikeId, setSelectedBikeId] = useState<string>("");
   const [activeMetric, setActiveMetric] = useState<
     "total" | "media" | "custo" | "consumo" | null
   >(null);
+  const currentDate = new Date();
+  const [periodStart, setPeriodStart] = useState(() =>
+    format(startOfMonth(currentDate), "yyyy-MM-dd"),
+  );
+  const [periodEnd, setPeriodEnd] = useState(() =>
+    format(endOfMonth(currentDate), "yyyy-MM-dd"),
+  );
+  const [isPeriodPickerOpen, setIsPeriodPickerOpen] = useState(false);
+  const [draftPeriodStart, setDraftPeriodStart] = useState(periodStart);
+  const [draftPeriodEnd, setDraftPeriodEnd] = useState(periodEnd);
 
   const categoryLabels: Record<string, string> = {
     Combustivel: "Combustível",
@@ -84,7 +93,6 @@ export const ExpenseInsights: React.FC = () => {
   };
 
   const filteredExpenses = useMemo(() => {
-    const now = new Date();
     let filtered = sourceExpenses;
 
     if (selectedBikeId) {
@@ -93,20 +101,58 @@ export const ExpenseInsights: React.FC = () => {
       );
     }
 
-    if (timeFilter === "Todo Período") return filtered;
-
-    const interval =
-      timeFilter === "Este Ano"
-        ? { start: startOfYear(now), end: endOfYear(now) }
-        : {
-            start: startOfYear(subYears(now, 1)),
-            end: endOfYear(subYears(now, 1)),
-          };
+    const interval = {
+      start: new Date(periodStart),
+      end: new Date(periodEnd),
+    };
 
     return filtered.filter((expense) =>
       isWithinInterval(new Date(expense.date), interval),
     );
-  }, [sourceExpenses, timeFilter, selectedBikeId]);
+  }, [sourceExpenses, selectedBikeId, periodStart, periodEnd]);
+
+  const periodButtonLabel = useMemo(() => {
+    const start = new Date(periodStart);
+    const end = new Date(periodEnd);
+    const isMonthlyDefault =
+      periodStart === format(startOfMonth(currentDate), "yyyy-MM-dd") &&
+      periodEnd === format(endOfMonth(currentDate), "yyyy-MM-dd");
+
+    if (isMonthlyDefault) {
+      return "Mensalmente";
+    }
+
+    if (periodStart === periodEnd) {
+      return format(start, "dd/MM/yyyy");
+    }
+
+    return `${format(start, "dd/MM/yyyy")} - ${format(end, "dd/MM/yyyy")}`;
+  }, [periodStart, periodEnd, currentDate]);
+
+  const openPeriodPicker = () => {
+    setDraftPeriodStart(periodStart);
+    setDraftPeriodEnd(periodEnd);
+    setIsPeriodPickerOpen(true);
+  };
+
+  const applyPeriodRange = () => {
+    const start = new Date(draftPeriodStart);
+    const end = new Date(draftPeriodEnd);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return;
+    }
+
+    if (start > end) {
+      setPeriodStart(draftPeriodEnd);
+      setPeriodEnd(draftPeriodStart);
+    } else {
+      setPeriodStart(draftPeriodStart);
+      setPeriodEnd(draftPeriodEnd);
+    }
+
+    setIsPeriodPickerOpen(false);
+  };
 
   const categoryData = useMemo(() => {
     const categories: Record<string, number> = {
@@ -157,24 +203,70 @@ export const ExpenseInsights: React.FC = () => {
   const totalKm = useMemo(() => {
     if (filteredExpenses.length === 0) return 0;
 
-    const bikeKmMap = new Map<string, number[]>();
-    filteredExpenses.forEach((expense) => {
-      if (!bikeKmMap.has(expense.bikeId)) {
-        bikeKmMap.set(expense.bikeId, []);
-      }
-      bikeKmMap.get(expense.bikeId)!.push(expense.km);
-    });
+    const filteredIds = new Set(filteredExpenses.map((expense) => expense.id));
+    const filteredBikeIds = new Set(
+      filteredExpenses.map((expense) => expense.bikeId),
+    );
+    const bikeCurrentKmMap = new Map(
+      sourceBikes.map((bike) => [bike.id, bike.currentKm]),
+    );
+    const bikeIds =
+      selectedBikeId !== ""
+        ? [selectedBikeId]
+        : Array.from(new Set(sourceExpenses.map((expense) => expense.bikeId)));
 
     let totalDistance = 0;
-    bikeKmMap.forEach((kms) => {
-      if (kms.length >= 2) {
-        const sortedKms = kms.sort((a, b) => a - b);
-        totalDistance += sortedKms[sortedKms.length - 1] - sortedKms[0];
+
+    bikeIds.forEach((bikeId) => {
+      const entries = sourceExpenses
+        .filter((expense) => expense.bikeId === bikeId)
+        .sort((a, b) => {
+          const timeDiff =
+            new Date(a.date).getTime() - new Date(b.date).getTime();
+          if (timeDiff !== 0) {
+            return timeDiff;
+          }
+          return a.km - b.km;
+        });
+
+      let previousKm: number | null = null;
+
+      entries.forEach((entry) => {
+        const deltaKm =
+          previousKm === null
+            ? Math.max(0, entry.km)
+            : Math.max(0, entry.km - previousKm);
+
+        if (filteredIds.has(entry.id)) {
+          totalDistance += deltaKm;
+        }
+
+        previousKm = entry.km;
+      });
+
+      const currentBikeKm = bikeCurrentKmMap.get(bikeId) ?? 0;
+
+      // Considera KM editado da moto como fonte adicional para métricas de distância.
+      if (entries.length === 0) {
+        if (selectedBikeId === bikeId) {
+          totalDistance += Math.max(0, currentBikeKm);
+        }
+        return;
+      }
+
+      const maxExpenseKm = entries.reduce(
+        (max, entry) => Math.max(max, entry.km),
+        0,
+      );
+      const extraKmFromBike = Math.max(0, currentBikeKm - maxExpenseKm);
+
+      if (filteredBikeIds.has(bikeId) || selectedBikeId === bikeId) {
+        totalDistance += extraKmFromBike;
       }
     });
 
     return totalDistance;
-  }, [filteredExpenses]);
+  }, [filteredExpenses, selectedBikeId, sourceBikes, sourceExpenses]);
 
   const fuelExpenses = useMemo(
     () => filteredExpenses.filter((expense) => expense.type === "Combustivel"),
@@ -185,6 +277,32 @@ export const ExpenseInsights: React.FC = () => {
     () => fuelExpenses.reduce((sum, expense) => sum + (expense.liters || 0), 0),
     [fuelExpenses],
   );
+
+  const fuelDistanceKm = useMemo(() => {
+    if (fuelExpenses.length === 0) return 0;
+
+    const bikeFuelMap = new Map<string, number[]>();
+
+    fuelExpenses.forEach((expense) => {
+      if (!bikeFuelMap.has(expense.bikeId)) {
+        bikeFuelMap.set(expense.bikeId, []);
+      }
+      bikeFuelMap.get(expense.bikeId)!.push(expense.km);
+    });
+
+    let totalDistance = 0;
+
+    bikeFuelMap.forEach((kms) => {
+      const sortedKms = [...kms].sort((a, b) => a - b);
+
+      sortedKms.forEach((km, index) => {
+        const previousKm = index > 0 ? sortedKms[index - 1] : 0;
+        totalDistance += Math.max(0, km - previousKm);
+      });
+    });
+
+    return totalDistance;
+  }, [fuelExpenses]);
 
   const latestFuelExpense = useMemo(() => {
     if (fuelExpenses.length === 0) return null;
@@ -200,6 +318,8 @@ export const ExpenseInsights: React.FC = () => {
     : "";
 
   const costPerKm = totalKm > 0 ? totalSpent / totalKm : 0;
+  const consumptionKmPerLiter =
+    totalFuelLiters > 0 ? fuelDistanceKm / totalFuelLiters : 0;
   const avgMonthly = totalSpent / 12;
 
   const COLORS = {
@@ -227,9 +347,9 @@ export const ExpenseInsights: React.FC = () => {
         "Valor médio gasto por quilômetro rodado no período. É calculado dividindo o total gasto pela diferença entre o maior e o menor KM registrado.",
     },
     consumo: {
-      title: "Consumo",
+      title: "Consumo (KM/L)",
       description:
-        "Total de litros abastecidos no período selecionado. Adicione abastecimentos para acompanhar este indicador.",
+        "Média de quilômetros por litro no período selecionado. É calculada pela distância percorrida dividida pelos litros abastecidos.",
     },
   };
 
@@ -268,15 +388,13 @@ export const ExpenseInsights: React.FC = () => {
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
               Período
             </label>
-            <select
-              value={timeFilter}
-              onChange={(e) => setTimeFilter(e.target.value as any)}
-              className="appearance-none w-full bg-white border border-gray-100 rounded-2xl px-5 py-3 pr-10 font-bold text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            <button
+              type="button"
+              onClick={openPeriodPicker}
+              className="appearance-none w-full bg-white border border-gray-100 rounded-2xl px-5 py-3 pr-10 font-bold text-sm shadow-sm text-left focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             >
-              <option>Este Ano</option>
-              <option>Ano Passado</option>
-              <option>Todo Período</option>
-            </select>
+              {periodButtonLabel}
+            </button>
             <ChevronDown
               size={16}
               className="absolute right-4 bottom-3 text-gray-400 pointer-events-none"
@@ -355,10 +473,11 @@ export const ExpenseInsights: React.FC = () => {
             Consumo
           </p>
           <p className="text-xl font-bold">
-            {totalFuelLiters.toLocaleString("pt-BR", {
-              maximumFractionDigits: 2,
+            {consumptionKmPerLiter.toLocaleString("pt-BR", {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
             })}{" "}
-            L
+            KM/L
           </p>
         </button>
       </div>
@@ -556,6 +675,100 @@ export const ExpenseInsights: React.FC = () => {
       </section>
 
       <AnimatePresence>
+        {isPeriodPickerOpen && (
+          <motion.div
+            className="fixed inset-0 z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+          >
+            <button
+              type="button"
+              onClick={() => setIsPeriodPickerOpen(false)}
+              className="absolute inset-0 bg-black/35 backdrop-blur-sm"
+              aria-label="Fechar período"
+            />
+
+            <motion.div
+              className="absolute inset-x-6 top-1/2 -translate-y-1/2 bg-white rounded-3xl p-6 shadow-2xl border border-gray-100"
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ duration: 0.24, ease: "easeOut" }}
+            >
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div>
+                  <h4 className="text-xl font-black text-gray-900">
+                    Selecionar período
+                  </h4>
+                  <p className="text-gray-500 text-sm mt-1">
+                    O período padrão é mensal. Você pode ajustar as datas como
+                    quiser.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPeriodPickerOpen(false)}
+                  className="p-2 rounded-xl bg-gray-100 text-gray-500"
+                  aria-label="Fechar"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-5">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
+                    Data inicial
+                  </label>
+                  <input
+                    type="date"
+                    className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
+                    value={draftPeriodStart}
+                    onChange={(e) => setDraftPeriodStart(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
+                    Data final
+                  </label>
+                  <input
+                    type="date"
+                    className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
+                    value={draftPeriodEnd}
+                    onChange={(e) => setDraftPeriodEnd(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraftPeriodStart(
+                      format(startOfMonth(currentDate), "yyyy-MM-dd"),
+                    );
+                    setDraftPeriodEnd(
+                      format(endOfMonth(currentDate), "yyyy-MM-dd"),
+                    );
+                  }}
+                  className="flex-1 h-12 rounded-2xl bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 transition-colors"
+                >
+                  Mensal
+                </button>
+                <button
+                  type="button"
+                  onClick={applyPeriodRange}
+                  className="flex-1 h-12 rounded-2xl bg-blue-500 text-white font-bold hover:bg-blue-600 transition-colors"
+                >
+                  Aplicar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
         {activeMetric && (
           <motion.div
             className="fixed inset-0 z-50"

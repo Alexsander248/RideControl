@@ -35,9 +35,11 @@ export const EditBike: React.FC = () => {
     name: "",
     model: "",
     year: new Date().getFullYear(),
+    currentKm: 0,
     photoUrl: "",
     purchasePrice: 0,
   });
+  const [currentKmInput, setCurrentKmInput] = useState("0");
   const [nameSuggestions, setNameSuggestions] = useState<
     MotorcycleSuggestion[]
   >([]);
@@ -56,10 +58,17 @@ export const EditBike: React.FC = () => {
       name: bike.name,
       model: bike.model,
       year: bike.year,
+      currentKm: bike.currentKm,
       photoUrl: bike.photoUrl || "",
       purchasePrice: bike.purchasePrice || 0,
     });
   }, [bike]);
+
+  useEffect(() => {
+    setCurrentKmInput(
+      formData.currentKm === 0 ? "0" : String(formData.currentKm),
+    );
+  }, [formData.currentKm]);
 
   useEffect(() => {
     const query = formData.name.trim();
@@ -220,11 +229,17 @@ export const EditBike: React.FC = () => {
       return;
     }
 
+    if (formData.currentKm < 0) {
+      alert("KM atual não pode ser negativo");
+      return;
+    }
+
     updateBike({
       ...bike,
       name: formData.name.trim(),
       model: formData.model.trim(),
       year: formData.year,
+      currentKm: formData.currentKm,
       photoUrl: formData.photoUrl.trim(),
       purchasePrice: formData.purchasePrice,
     });
@@ -375,6 +390,43 @@ export const EditBike: React.FC = () => {
                     Carregando anos FIPE...
                   </p>
                 )}
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
+                  KM atual
+                </label>
+                <input
+                  required
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
+                  value={currentKmInput === "0" ? "" : currentKmInput}
+                  onFocus={() => {
+                    if (currentKmInput === "0") {
+                      setCurrentKmInput("");
+                    }
+                  }}
+                  onChange={(e) => {
+                    const rawValue = e.target.value;
+                    const normalizedValue = rawValue.replace(/^0+(?=\d)/, "");
+                    setCurrentKmInput(normalizedValue);
+
+                    const nextCurrentKm = Number(normalizedValue);
+                    setFormData({
+                      ...formData,
+                      currentKm: Number.isNaN(nextCurrentKm)
+                        ? 0
+                        : Math.max(0, nextCurrentKm),
+                    });
+                  }}
+                  onBlur={() => {
+                    if (currentKmInput.trim() === "") {
+                      setCurrentKmInput("0");
+                      setFormData((prev) => ({ ...prev, currentKm: 0 }));
+                    }
+                  }}
+                />
               </div>
             </div>
 
