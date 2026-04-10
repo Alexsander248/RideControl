@@ -35,6 +35,7 @@ export interface Bike {
   name: string;
   model: string;
   year: number;
+  initialKm?: number;
   currentKm: number;
   photoUrl?: string;
   purchasePrice?: number;

@@ -1,16 +1,18 @@
 ﻿import React from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { Home, Activity, Plus, Bike, User } from "lucide-react";
+import { Home, Activity, Plus, Bike, User, Save } from "lucide-react";
 import { cn } from "../lib/utils";
 
 interface BottomNavProps {
   onQuickAction: () => void;
   disabled?: boolean;
+  quickActionMode?: "default" | "save-expense";
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({
   onQuickAction,
   disabled = false,
+  quickActionMode = "default",
 }) => {
   const location = useLocation();
 
@@ -38,19 +40,27 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       <nav className="fixed bottom-3 left-0 right-0 bg-white border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50 pb-safe">
         {navItems.map((item, index) => {
           if (item.isAction) {
+            const isSaveExpenseMode = quickActionMode === "save-expense";
+
             return (
               <button
                 key={index}
                 onClick={onQuickAction}
                 disabled={disabled}
+                aria-label={
+                  isSaveExpenseMode ? "Salvar gasto" : "Abrir ações rápidas"
+                }
+                title={isSaveExpenseMode ? "Salvar gasto" : "Ações rápidas"}
                 className={cn(
                   "tutorial-quick-action p-4 rounded-full -mt-12 transform transition-transform",
                   disabled
                     ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    : isSaveExpenseMode
+                    ? "bg-emerald-500 text-white shadow-lg shadow-emerald-200 ring-4 ring-emerald-100 active:scale-95"
                     : "bg-blue-500 text-white shadow-lg shadow-blue-200 active:scale-95",
                 )}
               >
-                <Plus size={28} />
+                {isSaveExpenseMode ? <Save size={26} /> : <Plus size={28} />}
               </button>
             );
           }

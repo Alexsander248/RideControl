@@ -1,5 +1,9 @@
 ﻿import React, { useEffect } from "react";
-import { useApp } from "../context/AppContext";
+import { Link, useLocation } from "react-router-dom";
+
+import { motion } from "motion/react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import {
   Fuel,
   Wrench,
@@ -8,10 +12,8 @@ import {
   ChevronRight,
   AlertCircle,
 } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
-import { motion } from "motion/react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+
+import { useApp } from "../context/AppContext";
 import { cn } from "../lib/utils";
 
 const DEFAULT_PROFILE_PHOTO = "/icons/perfil.png";
@@ -225,10 +227,10 @@ export const Home: React.FC = () => {
                     expense.type === "Combustivel"
                       ? "bg-orange-500"
                       : expense.type === "Manutencao"
-                        ? "bg-blue-500"
-                        : expense.type === "Pecas"
-                          ? "bg-purple-500"
-                          : "bg-gray-500",
+                      ? "bg-blue-500"
+                      : expense.type === "Pecas"
+                      ? "bg-purple-500"
+                      : "bg-gray-500",
                   )}
                 >
                   {expense.type === "Combustivel" ? (

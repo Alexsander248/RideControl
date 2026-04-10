@@ -1,6 +1,6 @@
-﻿import React, { useState } from "react";
+﻿import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useApp } from "../context/AppContext";
+
 import {
   ArrowLeft,
   Save,
@@ -9,10 +9,13 @@ import {
   Package,
   MoreHorizontal,
 } from "lucide-react";
-import { ExpenseCategory } from "../types";
+
+import { useApp } from "../context/AppContext";
 import { cn } from "../lib/utils";
+import type { ExpenseCategory } from "../types";
 
 export const AddExpense: React.FC = () => {
+  const formRef = useRef<HTMLFormElement | null>(null);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { bikes, addExpense } = useApp();
@@ -115,6 +118,21 @@ export const AddExpense: React.FC = () => {
     return bikeOptions.find((bike) => bike.id === bikeId)?.currentKm || 0;
   };
 
+  useEffect(() => {
+    const submitFromQuickAction = () => {
+      formRef.current?.requestSubmit();
+    };
+
+    window.addEventListener("app:submit-add-expense", submitFromQuickAction);
+
+    return () => {
+      window.removeEventListener(
+        "app:submit-add-expense",
+        submitFromQuickAction,
+      );
+    };
+  }, []);
+
   return (
     <div className="tutorial-add-expense p-6 pb-32">
       <header className="flex items-center gap-4 mb-8">
@@ -127,7 +145,7 @@ export const AddExpense: React.FC = () => {
         <h1 className="text-2xl font-bold">Adicionar Gastos</h1>
       </header>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
         <div className="bg-white rounded-[32px] p-8 shadow-sm border border-gray-50 space-y-8">
           {/* Category Selector */}
           <div>
@@ -306,13 +324,18 @@ export const AddExpense: React.FC = () => {
           </div>
         </div>
 
-        <button
-          type="submit"
-          className="w-full bg-blue-500 text-white py-5 rounded-[24px] font-bold text-lg shadow-xl shadow-blue-200 flex items-center justify-center gap-3 transition-transform active:scale-95"
-        >
-          <Save size={24} />
-          <span>Salvar gasto</span>
-        </button>
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+          <p className="text-sm font-semibold text-emerald-800">
+            Use o botão central da barra inferior para salvar este gasto.
+          </p>
+          <button
+            type="submit"
+            className="mt-3 w-full bg-white text-emerald-700 py-3 rounded-xl font-bold border border-emerald-200 flex items-center justify-center gap-2 transition-transform active:scale-95"
+          >
+            <Save size={18} />
+            <span>Salvar aqui (alternativo)</span>
+          </button>
+        </div>
       </form>
     </div>
   );

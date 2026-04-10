@@ -1,6 +1,9 @@
 ﻿import React, { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { useApp } from "../context/AppContext";
+
+import { motion } from "motion/react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import {
   ArrowLeft,
   Settings,
@@ -10,9 +13,8 @@ import {
   Star,
   ClipboardList,
 } from "lucide-react";
-import { motion } from "motion/react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+
+import { useApp } from "../context/AppContext";
 import { ImageViewerModal } from "../components/ImageViewerModal";
 
 export const BikeDetails: React.FC = () => {
@@ -203,10 +205,10 @@ export const BikeDetails: React.FC = () => {
                       expense.type === "Combustivel"
                         ? "w-12 h-12 rounded-2xl bg-orange-500 text-white flex items-center justify-center"
                         : expense.type === "Manutencao"
-                          ? "w-12 h-12 rounded-2xl bg-blue-500 text-white flex items-center justify-center"
-                          : expense.type === "Pecas"
-                            ? "w-12 h-12 rounded-2xl bg-purple-500 text-white flex items-center justify-center"
-                            : "w-12 h-12 rounded-2xl bg-gray-500 text-white flex items-center justify-center"
+                        ? "w-12 h-12 rounded-2xl bg-blue-500 text-white flex items-center justify-center"
+                        : expense.type === "Pecas"
+                        ? "w-12 h-12 rounded-2xl bg-purple-500 text-white flex items-center justify-center"
+                        : "w-12 h-12 rounded-2xl bg-gray-500 text-white flex items-center justify-center"
                     }
                   >
                     {expense.type === "Combustivel" ? (

@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, Camera, CheckCircle2, Sparkles, Save } from "lucide-react";
+
 import { useApp } from "../context/AppContext";
 import { getOptimizedImageDataUrl } from "../lib/image";
 
@@ -232,7 +234,7 @@ export const PersonalInfo: React.FC = () => {
               <input
                 required
                 type="text"
-                className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
+                className="w-full bg-gray-50 border border-gray-300 rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 disabled={isCompletingProfile}

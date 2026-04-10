@@ -6,7 +6,7 @@
 🔒 Card 4 — Login e Cadastro
 Criar tela de login
 Criar tela de cadastro
-Integrar com o app
+
 
 
 🧠 Card 6 — Modo desenvolvedor

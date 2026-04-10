@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import {
+
+import type {
   Bike,
   Expense,
   MaintenanceTask,
@@ -90,7 +91,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           : installYear;
 
       return {
-        bikes: parsed.bikes || [],
+        bikes: (parsed.bikes || []).map((bike) => ({
+          ...bike,
+          initialKm: bike.initialKm ?? bike.currentKm,
+        })),
         expenses: parsed.expenses || [],
         tasks: parsed.tasks || [],
         userProfile: {
@@ -133,16 +137,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     const newBike: Bike = {
       ...bikeData,
       id: crypto.randomUUID(),
+      initialKm: bikeData.initialKm ?? bikeData.currentKm,
       isFavorite: bikeData.isFavorite ?? false,
     };
     setState((prev) => ({ ...prev, bikes: [...prev.bikes, newBike] }));
   };
 
   const updateBike = (bike: Bike) => {
-    setState((prev) => ({
-      ...prev,
-      bikes: prev.bikes.map((b) => (b.id === bike.id ? bike : b)),
-    }));
+    setState((prev) => {
+      const existingBike = prev.bikes.find((b) => b.id === bike.id);
+      const hasBikeExpenses = prev.expenses.some((e) => e.bikeId === bike.id);
+      const persistedInitialKm =
+        existingBike?.initialKm ?? existingBike?.currentKm ?? bike.currentKm;
+
+      const nextBike: Bike = {
+        ...bike,
+        initialKm: hasBikeExpenses ? persistedInitialKm : bike.currentKm,
+      };
+
+      return {
+        ...prev,
+        bikes: prev.bikes.map((b) => (b.id === bike.id ? nextBike : b)),
+      };
+    });
   };
 
   const toggleFavoriteBike = (id: string) => {
@@ -174,9 +191,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     });
 
     return bikes.map((bike) => {
-      const expenseMaxKm = maxKmByBike.get(bike.id) || 0;
-      const nextKm = Math.max(bike.currentKm, expenseMaxKm);
-      return nextKm === bike.currentKm ? bike : { ...bike, currentKm: nextKm };
+      const expenseMaxKm = maxKmByBike.get(bike.id);
+      const baseKm = bike.initialKm ?? bike.currentKm;
+
+      // Sem atividades: volta para o KM base de cadastro.
+      if (expenseMaxKm === undefined) {
+        return bike.currentKm === baseKm
+          ? { ...bike, initialKm: baseKm }
+          : { ...bike, currentKm: baseKm, initialKm: baseKm };
+      }
+
+      // Com atividades: usa o maior KM registrado, sem descer abaixo do KM base.
+      const nextKm = Math.max(baseKm, expenseMaxKm);
+      return {
+        ...bike,
+        currentKm: nextKm,
+        initialKm: baseKm,
+      };
     });
   };
 

@@ -1,6 +1,9 @@
 import React, { useMemo, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { useApp } from "../context/AppContext";
+
+import { motion } from "motion/react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import {
   ArrowLeft,
   Circle,
@@ -9,9 +12,8 @@ import {
   Calendar,
   Plus,
 } from "lucide-react";
-import { motion } from "motion/react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+
+import { useApp } from "../context/AppContext";
 import { cn } from "../lib/utils";
 
 export const BikeTasks: React.FC = () => {
@@ -160,8 +162,8 @@ export const BikeTasks: React.FC = () => {
                       task.priority === "ALTA"
                         ? "bg-red-100 text-red-600"
                         : task.priority === "MEDIA"
-                          ? "bg-orange-100 text-orange-600"
-                          : "bg-blue-100 text-blue-600",
+                        ? "bg-orange-100 text-orange-600"
+                        : "bg-blue-100 text-blue-600",
                     )}
                   >
                     {task.priority}
@@ -214,8 +216,8 @@ export const BikeTasks: React.FC = () => {
                     task.priority === "ALTA"
                       ? "bg-red-100 text-red-600"
                       : task.priority === "MEDIA"
-                        ? "bg-orange-100 text-orange-600"
-                        : "bg-blue-100 text-blue-600",
+                      ? "bg-orange-100 text-orange-600"
+                      : "bg-blue-100 text-blue-600",
                   )}
                 >
                   {task.priority}

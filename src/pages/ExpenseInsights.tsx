@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useApp } from "../context/AppContext";
+
 import {
   PieChart,
   Pie,
@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import {
   format,
+  addMonths,
   startOfMonth,
   endOfMonth,
   startOfYear,
@@ -23,6 +24,7 @@ import {
   isWithinInterval,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { AnimatePresence, motion } from "motion/react";
 import {
   ChevronDown,
   DollarSign,
@@ -32,8 +34,10 @@ import {
   X,
   Wrench,
   Fuel,
+  SquarePen,
 } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+
+import { useApp } from "../context/AppContext";
 import { cn } from "../lib/utils";
 
 export const ExpenseInsights: React.FC = () => {
@@ -177,96 +181,105 @@ export const ExpenseInsights: React.FC = () => {
   }, [filteredExpenses]);
 
   const monthlyData = useMemo(() => {
-    const months: Record<string, number> = {};
-    const now = new Date();
+    const start = startOfMonth(new Date(periodStart));
+    const end = startOfMonth(new Date(periodEnd));
 
-    for (let index = 5; index >= 0; index--) {
-      const date = new Date(now.getFullYear(), now.getMonth() - index, 1);
-      months[format(date, "MMM")] = 0;
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return [];
+    }
+
+    const labelPattern =
+      start.getFullYear() === end.getFullYear() ? "MMM" : "MMM/yy";
+
+    const monthItems: Array<{ key: string; name: string }> = [];
+    const totalsByMonth = new Map<string, number>();
+
+    let cursor = start;
+    while (cursor <= end) {
+      const monthKey = format(cursor, "yyyy-MM");
+      const monthLabel = format(cursor, labelPattern, { locale: ptBR })
+        .replace(".", "")
+        .toUpperCase();
+
+      monthItems.push({ key: monthKey, name: monthLabel });
+      totalsByMonth.set(monthKey, 0);
+      cursor = addMonths(cursor, 1);
     }
 
     filteredExpenses.forEach((expense) => {
-      const month = format(new Date(expense.date), "MMM");
-      if (months[month] !== undefined) {
-        months[month] += expense.amount;
+      const monthKey = format(new Date(expense.date), "yyyy-MM");
+      if (totalsByMonth.has(monthKey)) {
+        totalsByMonth.set(
+          monthKey,
+          (totalsByMonth.get(monthKey) || 0) + expense.amount,
+        );
       }
     });
 
-    return Object.entries(months).map(([name, amount]) => ({ name, amount }));
-  }, [filteredExpenses]);
+    return monthItems.map((month) => ({
+      name: month.name,
+      total: totalsByMonth.get(month.key) || 0,
+    }));
+  }, [filteredExpenses, periodStart, periodEnd]);
+
+  const monthlyChartWidth = Math.max(monthlyData.length * 68, 320);
 
   const totalSpent = filteredExpenses.reduce(
     (sum, expense) => sum + expense.amount,
     0,
   );
 
+  const calculateDistanceFromKmReadings = (
+    kms: number[],
+    baseKm?: number,
+  ): number => {
+    if (kms.length === 0) return 0;
+
+    const sortedKms = [...kms].sort((a, b) => a - b);
+    const firstKm = sortedKms[0];
+    const startKm = typeof baseKm === "number" ? baseKm : firstKm;
+
+    let distance = Math.max(0, firstKm - startKm);
+
+    for (let i = 1; i < sortedKms.length; i++) {
+      distance += Math.max(0, sortedKms[i] - sortedKms[i - 1]);
+    }
+
+    return distance;
+  };
+
   const totalKm = useMemo(() => {
     if (filteredExpenses.length === 0) return 0;
 
-    const filteredIds = new Set(filteredExpenses.map((expense) => expense.id));
-    const filteredBikeIds = new Set(
-      filteredExpenses.map((expense) => expense.bikeId),
-    );
-    const bikeCurrentKmMap = new Map(
-      sourceBikes.map((bike) => [bike.id, bike.currentKm]),
+    const bikeInitialKmMap = new Map(
+      sourceBikes.map((bike) => [bike.id, bike.initialKm ?? bike.currentKm]),
     );
     const bikeIds =
       selectedBikeId !== ""
         ? [selectedBikeId]
-        : Array.from(new Set(sourceExpenses.map((expense) => expense.bikeId)));
+        : Array.from(
+            new Set(filteredExpenses.map((expense) => expense.bikeId)),
+          );
 
     let totalDistance = 0;
 
     bikeIds.forEach((bikeId) => {
-      const entries = sourceExpenses
+      const bikeKms = filteredExpenses
         .filter((expense) => expense.bikeId === bikeId)
-        .sort((a, b) => {
-          const timeDiff =
-            new Date(a.date).getTime() - new Date(b.date).getTime();
-          if (timeDiff !== 0) {
-            return timeDiff;
-          }
-          return a.km - b.km;
-        });
+        .map((expense) => expense.km);
 
-      let previousKm: number | null = null;
-
-      entries.forEach((entry) => {
-        const deltaKm =
-          previousKm === null
-            ? Math.max(0, entry.km)
-            : Math.max(0, entry.km - previousKm);
-
-        if (filteredIds.has(entry.id)) {
-          totalDistance += deltaKm;
-        }
-
-        previousKm = entry.km;
-      });
-
-      const currentBikeKm = bikeCurrentKmMap.get(bikeId) ?? 0;
-
-      // Considera KM editado da moto como fonte adicional para métricas de distância.
-      if (entries.length === 0) {
-        if (selectedBikeId === bikeId) {
-          totalDistance += Math.max(0, currentBikeKm);
-        }
+      if (bikeKms.length === 0) {
         return;
       }
 
-      const maxExpenseKm = entries.reduce(
-        (max, entry) => Math.max(max, entry.km),
-        0,
+      totalDistance += calculateDistanceFromKmReadings(
+        bikeKms,
+        bikeInitialKmMap.get(bikeId),
       );
-      const extraKmFromBike = Math.max(0, currentBikeKm - maxExpenseKm);
-
-      if (filteredBikeIds.has(bikeId) || selectedBikeId === bikeId) {
-        totalDistance += extraKmFromBike;
-      }
     });
 
     return totalDistance;
-  }, [filteredExpenses, selectedBikeId, sourceBikes, sourceExpenses]);
+  }, [filteredExpenses, selectedBikeId, sourceBikes]);
 
   const fuelExpenses = useMemo(
     () => filteredExpenses.filter((expense) => expense.type === "Combustivel"),
@@ -281,28 +294,28 @@ export const ExpenseInsights: React.FC = () => {
   const fuelDistanceKm = useMemo(() => {
     if (fuelExpenses.length === 0) return 0;
 
+    const bikeInitialKmMap = new Map(
+      sourceBikes.map((bike) => [bike.id, bike.initialKm ?? bike.currentKm]),
+    );
     const bikeFuelMap = new Map<string, number[]>();
 
     fuelExpenses.forEach((expense) => {
-      if (!bikeFuelMap.has(expense.bikeId)) {
-        bikeFuelMap.set(expense.bikeId, []);
-      }
-      bikeFuelMap.get(expense.bikeId)!.push(expense.km);
+      const kms = bikeFuelMap.get(expense.bikeId) ?? [];
+      kms.push(expense.km);
+      bikeFuelMap.set(expense.bikeId, kms);
     });
 
     let totalDistance = 0;
 
-    bikeFuelMap.forEach((kms) => {
-      const sortedKms = [...kms].sort((a, b) => a - b);
-
-      sortedKms.forEach((km, index) => {
-        const previousKm = index > 0 ? sortedKms[index - 1] : 0;
-        totalDistance += Math.max(0, km - previousKm);
-      });
+    bikeFuelMap.forEach((kms, bikeId) => {
+      totalDistance += calculateDistanceFromKmReadings(
+        kms,
+        bikeInitialKmMap.get(bikeId),
+      );
     });
 
     return totalDistance;
-  }, [fuelExpenses]);
+  }, [fuelExpenses, sourceBikes]);
 
   const latestFuelExpense = useMemo(() => {
     if (fuelExpenses.length === 0) return null;
@@ -320,6 +333,10 @@ export const ExpenseInsights: React.FC = () => {
   const costPerKm = totalKm > 0 ? totalSpent / totalKm : 0;
   const consumptionKmPerLiter =
     totalFuelLiters > 0 ? fuelDistanceKm / totalFuelLiters : 0;
+  const hasEnoughCostData = totalKm > 0;
+  const fuelStopsCount = fuelExpenses.length;
+  const hasEnoughFuelData =
+    fuelStopsCount > 0 && fuelDistanceKm > 0 && totalFuelLiters > 0;
   const avgMonthly = totalSpent / 12;
 
   const COLORS = {
@@ -362,14 +379,14 @@ export const ExpenseInsights: React.FC = () => {
         </div>
 
         <div className="flex flex-row gap-4 items-end">
-          <div className="flex-1 relative">
+          <div className="flex-1 min-w-0 relative">
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
               Motocicleta
             </label>
             <select
               value={selectedBikeId}
               onChange={(e) => setSelectedBikeId(e.target.value)}
-              className="appearance-none w-full bg-white border border-gray-100 rounded-2xl px-5 py-3 pr-10 font-bold text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="appearance-none w-full h-12 bg-white border border-gray-100 rounded-2xl px-5 py-0 pr-10 font-bold text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             >
               <option value="">Todas as motos</option>
               {sourceBikes.map((bike) => (
@@ -384,16 +401,19 @@ export const ExpenseInsights: React.FC = () => {
             />
           </div>
 
-          <div className="flex-1 relative">
+          <div className="flex-1 min-w-0 relative">
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
               Período
             </label>
             <button
               type="button"
               onClick={openPeriodPicker}
-              className="appearance-none w-full bg-white border border-gray-100 rounded-2xl px-5 py-3 pr-10 font-bold text-sm shadow-sm text-left focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              title={periodButtonLabel}
+              className="appearance-none w-full h-12 bg-white border border-gray-100 rounded-2xl px-5 py-0 pr-10 font-bold text-sm shadow-sm text-left focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             >
-              {periodButtonLabel}
+              <span className="block overflow-hidden text-ellipsis whitespace-nowrap">
+                {periodButtonLabel}
+              </span>
             </button>
             <ChevronDown
               size={16}
@@ -473,11 +493,7 @@ export const ExpenseInsights: React.FC = () => {
             Consumo
           </p>
           <p className="text-xl font-bold">
-            {consumptionKmPerLiter.toLocaleString("pt-BR", {
-              minimumFractionDigits: 1,
-              maximumFractionDigits: 1,
-            })}{" "}
-            KM/L
+            {consumptionKmPerLiter.toFixed(1)} KM/L
           </p>
         </button>
       </div>
@@ -575,7 +591,7 @@ export const ExpenseInsights: React.FC = () => {
                   onClick={() =>
                     navigate(`/diagnostico/atividade/${expense.id}`)
                   }
-                  className="w-full text-left flex items-center gap-4 p-4 rounded-2xl bg-gray-50 hover:bg-gray-100 transition-colors"
+                  className="w-full text-left flex items-center gap-4 p-4 rounded-2xl bg-gray-50 border border-gray-200 hover:border-blue-200 hover:bg-blue-50/40 transition-colors"
                 >
                   <div
                     className={cn(
@@ -583,10 +599,10 @@ export const ExpenseInsights: React.FC = () => {
                       expense.type === "Combustivel"
                         ? "bg-orange-500"
                         : expense.type === "Manutencao"
-                          ? "bg-blue-500"
-                          : expense.type === "Pecas"
-                            ? "bg-purple-500"
-                            : "bg-gray-500",
+                        ? "bg-blue-500"
+                        : expense.type === "Pecas"
+                        ? "bg-purple-500"
+                        : "bg-gray-500",
                     )}
                   >
                     {expense.type === "Combustivel" ? (
@@ -622,9 +638,13 @@ export const ExpenseInsights: React.FC = () => {
                       expense.liters !== undefined
                         ? `${expense.liters.toLocaleString("pt-BR", {
                             maximumFractionDigits: 2,
-                          })} L`
-                        : `${expense.km.toLocaleString()} KM`}
+                          })} L • ${expense.km.toLocaleString("pt-BR")} KM`
+                        : `${expense.km.toLocaleString("pt-BR")} KM`}
                     </p>
+                    <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-600">
+                      <SquarePen size={11} />
+                      Editar
+                    </div>
                   </div>
                 </button>
               ))
@@ -634,14 +654,9 @@ export const ExpenseInsights: React.FC = () => {
 
       <section className="bg-white rounded-[32px] p-8 shadow-sm border border-gray-50 mb-8">
         <h3 className="text-lg font-bold mb-6">Gastos Mensais</h3>
-        <div className="h-64 min-w-0">
-          <ResponsiveContainer
-            width="100%"
-            height="100%"
-            minWidth={0}
-            minHeight={256}
-          >
-            <BarChart data={monthlyData}>
+        <div className="overflow-x-auto pb-2">
+          <div style={{ width: `${monthlyChartWidth}px`, height: "256px" }}>
+            <BarChart data={monthlyData} width={monthlyChartWidth} height={256}>
               <CartesianGrid
                 strokeDasharray="3 3"
                 vertical={false}
@@ -652,6 +667,8 @@ export const ExpenseInsights: React.FC = () => {
                 axisLine={false}
                 tickLine={false}
                 tick={{ fill: "#9CA3AF", fontSize: 12, fontWeight: 600 }}
+                interval={0}
+                tickMargin={10}
                 dy={10}
               />
               <YAxis hide />
@@ -662,15 +679,23 @@ export const ExpenseInsights: React.FC = () => {
                   border: "none",
                   boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
                 }}
+                formatter={(value: number) => [
+                  value.toLocaleString("pt-BR", {
+                    style: "currency",
+                    currency: "BRL",
+                  }),
+                  "Total",
+                ]}
+                labelFormatter={(label) => `Mês: ${label}`}
               />
               <Bar
-                dataKey="amount"
+                dataKey="total"
                 fill="#22C55E"
                 radius={[8, 8, 8, 8]}
                 barSize={24}
               />
             </BarChart>
-          </ResponsiveContainer>
+          </div>
         </div>
       </section>
 
@@ -717,25 +742,25 @@ export const ExpenseInsights: React.FC = () => {
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 mb-5">
-                <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+                <div className="min-w-0">
                   <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
                     Data inicial
                   </label>
                   <input
                     type="date"
-                    className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
+                    className="w-full h-12 bg-gray-50 border-none rounded-2xl px-3 py-0 text-sm font-semibold focus:ring-2 focus:ring-blue-500/20"
                     value={draftPeriodStart}
                     onChange={(e) => setDraftPeriodStart(e.target.value)}
                   />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
                     Data final
                   </label>
                   <input
                     type="date"
-                    className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
+                    className="w-full h-12 bg-gray-50 border-none rounded-2xl px-3 py-0 text-sm font-semibold focus:ring-2 focus:ring-blue-500/20"
                     value={draftPeriodEnd}
                     onChange={(e) => setDraftPeriodEnd(e.target.value)}
                   />
@@ -807,6 +832,168 @@ export const ExpenseInsights: React.FC = () => {
               <p className="text-gray-600 leading-relaxed text-sm">
                 {metricInfo[activeMetric].description}
               </p>
+
+              {activeMetric === "custo" && (
+                <div className="mt-5 space-y-4">
+                  <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">
+                      Fórmula
+                    </p>
+                    <p className="text-sm font-semibold text-gray-800">
+                      Custo/KM = Total gasto no período / Distância considerada
+                      (KM)
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-gray-100 p-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                        Total gasto
+                      </p>
+                      <p className="text-lg font-black text-gray-900">
+                        {totalSpent.toLocaleString("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        })}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-gray-100 p-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                        Distância usada
+                      </p>
+                      <p className="text-lg font-black text-gray-900">
+                        {totalKm.toLocaleString("pt-BR", {
+                          maximumFractionDigits: 1,
+                        })}{" "}
+                        KM
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-gray-100 p-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                        Resultado
+                      </p>
+                      <p className="text-lg font-black text-gray-900">
+                        {costPerKm.toLocaleString("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                        /KM
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-orange-100 bg-orange-50/70 p-4">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-orange-600 mb-2">
+                      Cálculo aplicado
+                    </p>
+                    {hasEnoughCostData ? (
+                      <p className="text-sm font-semibold text-orange-900">
+                        {totalSpent.toLocaleString("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        })}{" "}
+                        ÷{" "}
+                        {totalKm.toLocaleString("pt-BR", {
+                          maximumFractionDigits: 1,
+                        })}{" "}
+                        KM ={" "}
+                        {costPerKm.toLocaleString("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                        /KM
+                      </p>
+                    ) : (
+                      <p className="text-sm font-semibold text-orange-900">
+                        Dados insuficientes para calcular custo por KM neste
+                        período. É necessário ter distância positiva registrada.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeMetric === "consumo" && (
+                <div className="mt-5 space-y-4">
+                  <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">
+                      Fórmula
+                    </p>
+                    <p className="text-sm font-semibold text-gray-800">
+                      Consumo (KM/L) = Distância entre abastecimentos / Litros
+                      abastecidos
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-gray-100 p-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                        Abastecimentos
+                      </p>
+                      <p className="text-lg font-black text-gray-900">
+                        {fuelStopsCount}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-gray-100 p-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                        Distância usada
+                      </p>
+                      <p className="text-lg font-black text-gray-900">
+                        {fuelDistanceKm.toLocaleString("pt-BR", {
+                          maximumFractionDigits: 1,
+                        })}{" "}
+                        KM
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-gray-100 p-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                        Litros usados
+                      </p>
+                      <p className="text-lg font-black text-gray-900">
+                        {totalFuelLiters.toLocaleString("pt-BR", {
+                          minimumFractionDigits: 1,
+                          maximumFractionDigits: 2,
+                        })}{" "}
+                        L
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-blue-600 mb-2">
+                      Cálculo aplicado
+                    </p>
+                    {hasEnoughFuelData ? (
+                      <p className="text-sm font-semibold text-blue-900">
+                        {fuelDistanceKm.toLocaleString("pt-BR", {
+                          maximumFractionDigits: 1,
+                        })}{" "}
+                        KM ÷{" "}
+                        {totalFuelLiters.toLocaleString("pt-BR", {
+                          minimumFractionDigits: 1,
+                          maximumFractionDigits: 2,
+                        })}{" "}
+                        L = {consumptionKmPerLiter.toFixed(1)} KM/L
+                      </p>
+                    ) : (
+                      <p className="text-sm font-semibold text-blue-900">
+                        Dados insuficientes para calcular o consumo neste
+                        período. É necessário ter litros abastecidos e uma
+                        distância positiva entre o KM inicial da moto e os
+                        abastecimentos registrados.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}

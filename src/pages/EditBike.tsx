@@ -1,8 +1,11 @@
 ﻿import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+
 import { useApp } from "../context/AppContext";
 import { ArrowLeft, Camera, Save } from "lucide-react";
+
 import { getOptimizedImageDataUrl } from "../lib/image";
+import { validateYear } from "../lib/bikeFormHelpers";
 import {
   getFipePriceForYear,
   getMotorcycleSuggestions,
@@ -11,18 +14,7 @@ import {
   MotorcycleYearOption,
 } from "../lib/motorcycleAutocomplete";
 
-type SelectedFipeModel = {
-  brandCode: string;
-  modelCode: number;
-};
-
-const validateYear = (year: number): number => {
-  const currentYear = new Date().getFullYear();
-  if (year >= 1990 && year <= currentYear) {
-    return year;
-  }
-  return currentYear;
-};
+import type { SelectedFipeModel } from "../lib/bikeFormHelpers";
 
 export const EditBike: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -207,6 +199,7 @@ export const EditBike: React.FC = () => {
     setYearOptions([]);
     setSelectedYearCode("");
     setIsLoadingPrice(false);
+    setShowSuggestions(nextName.trim().length >= 2);
   };
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -226,11 +219,6 @@ export const EditBike: React.FC = () => {
 
     if (!formData.name || !formData.model) {
       alert("Nome e Modelo são obrigatórios");
-      return;
-    }
-
-    if (formData.currentKm < 0) {
-      alert("KM atual não pode ser negativo");
       return;
     }
 
@@ -408,17 +396,14 @@ export const EditBike: React.FC = () => {
                     }
                   }}
                   onChange={(e) => {
-                    const rawValue = e.target.value;
-                    const normalizedValue = rawValue.replace(/^0+(?=\d)/, "");
-                    setCurrentKmInput(normalizedValue);
+                    const normalized = e.target.value.replace(/^0+(?=\d)/, "");
+                    setCurrentKmInput(normalized);
 
-                    const nextCurrentKm = Number(normalizedValue);
-                    setFormData({
-                      ...formData,
-                      currentKm: Number.isNaN(nextCurrentKm)
-                        ? 0
-                        : Math.max(0, nextCurrentKm),
-                    });
+                    const km = Number(normalized);
+                    setFormData((prev) => ({
+                      ...prev,
+                      currentKm: Number.isNaN(km) ? 0 : Math.max(0, km),
+                    }));
                   }}
                   onBlur={() => {
                     if (currentKmInput.trim() === "") {

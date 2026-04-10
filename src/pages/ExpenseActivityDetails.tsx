@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+
 import { ArrowLeft, Save, Trash2 } from "lucide-react";
+
 import { useApp } from "../context/AppContext";
-import { ExpenseCategory } from "../types";
+import type { ExpenseCategory } from "../types";
 
 type EditFormData = {
   bikeId: string;
@@ -121,7 +123,7 @@ export const ExpenseActivityDetails: React.FC = () => {
         liters: formData.type === "Combustivel" ? formData.liters : undefined,
         notes: formData.notes.trim() || undefined,
       });
-      setIsEditing(false);
+      navigate("/diagnostico", { replace: true });
     } catch (err) {
       console.error("Erro ao salvar atividade:", err);
       setError("Erro ao salvar. Tente novamente.");
