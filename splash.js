@@ -2,12 +2,14 @@
   const splash = document.getElementById("app-splash");
   const statusText = document.getElementById("splash-status");
   const progressFill = document.getElementById("splash-progress");
+  const progressLabel = document.querySelector(".progress-label");
 
   if (!splash) {
     return;
   }
 
-  const splashDurationMs = 5800;
+  const splashDurationMs = 3800;
+  const completionAnimationMs = 2350;
   const exitDurationMs = 600;
   const forceCloseMs = 10000;
   let minimumTimeElapsed = false;
@@ -49,13 +51,21 @@
     if (closed || !minimumTimeElapsed || !appReady || !updateCheckComplete)
       return;
     closed = true;
-    setProgress(100);
 
-    splash.classList.add("exit");
+    setStatus("Carregamento concluído");
+    if (progressLabel) {
+      progressLabel.textContent = "Concluído";
+    }
+    setProgress(100);
+    splash.classList.add("is-complete");
 
     window.setTimeout(() => {
-      splash.remove();
-    }, exitDurationMs);
+      splash.classList.add("exit");
+
+      window.setTimeout(() => {
+        splash.remove();
+      }, exitDurationMs);
+    }, completionAnimationMs);
   };
 
   window.setTimeout(() => {
