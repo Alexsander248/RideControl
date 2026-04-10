@@ -448,7 +448,7 @@ export const ExpenseInsights: React.FC = () => {
           className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-50 text-left"
         >
           <div className="bg-orange-50 w-10 h-10 rounded-xl flex items-center justify-center text-orange-600 mb-4">
-            <Gauge size={20} />
+            <CreditCard size={20} />
           </div>
           <p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">
             Custo / KM
@@ -467,7 +467,7 @@ export const ExpenseInsights: React.FC = () => {
           className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-50 text-left"
         >
           <div className="bg-purple-50 w-10 h-10 rounded-xl flex items-center justify-center text-purple-600 mb-4">
-            <CreditCard size={20} />
+            <Gauge size={20} />
           </div>
           <p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">
             Consumo
