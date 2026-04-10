@@ -171,7 +171,7 @@ export const PersonalInfo: React.FC = () => {
 
         {requiresMandatorySetup && (
           <p className="mb-6 rounded-2xl bg-amber-50 border border-amber-100 text-amber-700 px-4 py-3 text-sm font-semibold">
-            Complete seu nome para liberar a navegação do app.
+            Complete o cadastro para liberar a navegação.
           </p>
         )}
 

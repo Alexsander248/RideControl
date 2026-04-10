@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
@@ -18,9 +18,28 @@
   </head>
   <body>
     <div id="app-splash" class="app-splash" aria-hidden="true">
+      <div class="splash-ambient splash-ambient-a" aria-hidden="true"></div>
+      <div class="splash-ambient splash-ambient-b" aria-hidden="true"></div>
       <div class="splash-container">
-        <img src="/icons/icon.png" class="logo" alt="Ride Control" />
+        <div class="logo-shell" aria-hidden="true">
+          <img src="/icons/icon.png" class="logo" alt="Ride Control" />
+        </div>
         <h1 class="title">Ride Control</h1>
+        <p class="subtitle">
+          Preparando sua garagem e verificando atualizações
+        </p>
+        <div class="status-row" aria-live="polite">
+          <span class="status-dot"></span>
+          <span id="splash-status" class="status-text"
+            >Iniciando aplicativo</span
+          >
+        </div>
+        <div class="progress-shell" aria-hidden="true">
+          <div class="progress-track">
+            <div id="splash-progress" class="progress-fill"></div>
+          </div>
+          <span class="progress-label">Carregando experiência premium</span>
+        </div>
       </div>
     </div>
     <div id="root"></div>

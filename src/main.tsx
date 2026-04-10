@@ -6,11 +6,23 @@ import App from "./App.tsx";
 // @ts-ignore
 import "./index.css";
 
+const dispatchSplashEvent = (type: string, message?: string) => {
+  window.dispatchEvent(
+    new CustomEvent(type, {
+      detail: message ? { message } : undefined,
+    }),
+  );
+};
+
 // Registra o SW e força verificacoes frequentes de atualizacao.
 // Assim o app sempre tenta buscar nova versao ao abrir e ao voltar ao foco.
 const updateSW = registerSW({
   immediate: true,
   onNeedRefresh() {
+    dispatchSplashEvent(
+      "app:update-check-start",
+      "Atualização encontrada, aplicando",
+    );
     updateSW(true);
   },
   onRegisteredSW(
@@ -18,11 +30,12 @@ const updateSW = registerSW({
     registration: ServiceWorkerRegistration | undefined,
   ) {
     if (!registration) {
+      dispatchSplashEvent("app:update-check-complete", "Aplicativo pronto");
       return;
     }
 
     const checkForUpdates = () => {
-      registration.update().catch((error: unknown) => {
+      return registration.update().catch((error: unknown) => {
         console.error("Falha ao verificar atualizacao do app:", error);
       });
     };
@@ -33,7 +46,11 @@ const updateSW = registerSW({
       }
     };
 
-    checkForUpdates();
+    dispatchSplashEvent("app:update-check-start", "Verificando atualizações");
+
+    checkForUpdates().finally(() => {
+      dispatchSplashEvent("app:update-check-complete", "Tudo pronto");
+    });
 
     window.addEventListener("focus", checkForUpdates);
     document.addEventListener("visibilitychange", onVisible);
