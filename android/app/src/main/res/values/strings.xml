@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">RideControl</string>
+    <string name="title_activity_main">RideControl</string>
+    <string name="package_name">com.ridecontrol.app</string>
+    <string name="custom_url_scheme">com.ridecontrol.app</string>
+</resources>
