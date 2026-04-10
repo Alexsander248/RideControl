@@ -52,6 +52,7 @@ export const ExpenseInsights: React.FC = () => {
     name: "YAMAHA YZF R-3 321/ABS",
     model: "YZF R-3 321/ABS",
     year: 2021,
+    initialKm: 100,
     currentKm: 100,
     photoUrl: "/icons/motoTutorial.jpg",
     purchasePrice: 26317,
@@ -679,8 +680,11 @@ export const ExpenseInsights: React.FC = () => {
                   border: "none",
                   boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
                 }}
-                formatter={(value: number) => [
-                  value.toLocaleString("pt-BR", {
+                formatter={(value) => [
+                  (typeof value === "number"
+                    ? value
+                    : Number(value ?? 0)
+                  ).toLocaleString("pt-BR", {
                     style: "currency",
                     currency: "BRL",
                   }),

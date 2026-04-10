@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: "autoUpdate",
 
-        includeAssets: ["icons/icon.png", "icons/icon2.png"],
+        includeAssets: ["icons/icon.png"],
 
         // 👇 CORREÇÃO DO ERRO "Unexpected token export"
         workbox: {
