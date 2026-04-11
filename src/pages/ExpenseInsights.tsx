@@ -27,6 +27,7 @@ import { ptBR } from "date-fns/locale";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ChevronDown,
+  ChevronRight,
   DollarSign,
   TrendingUp,
   Gauge,
@@ -34,7 +35,6 @@ import {
   X,
   Wrench,
   Fuel,
-  SquarePen,
 } from "lucide-react";
 
 import { useApp } from "../context/AppContext";
@@ -582,9 +582,9 @@ export const ExpenseInsights: React.FC = () => {
         </div>
       </section>
 
-      <section className="bg-white rounded-[32px] p-8 shadow-sm border border-gray-50 mb-8">
-        <h3 className="text-lg font-bold mb-6">Atividades</h3>
-        <div className="max-h-[19rem] overflow-y-auto pr-1 space-y-4">
+      <section className="bg-white rounded-[32px] px-8 py-6 shadow-sm border border-gray-50 mb-8 -mx-6">
+        <h3 className="text-lg font-bold mb-4">Atividades</h3>
+        <div className="max-h-[28rem] overflow-y-auto pr-2 space-y-3">
           {filteredExpenses.length === 0 ? (
             <p className="text-gray-400 text-center py-8 italic">
               Nenhuma atividade encontrada
@@ -602,7 +602,7 @@ export const ExpenseInsights: React.FC = () => {
                   onClick={() =>
                     navigate(`/diagnostico/atividade/${expense.id}`)
                   }
-                  className="w-full text-left flex items-center gap-4 p-4 rounded-2xl bg-gray-50 border border-gray-200 hover:border-blue-200 hover:bg-blue-50/40 transition-colors"
+                  className="w-full text-left flex items-center gap-4 p-4 rounded-3xl bg-white border border-gray-50 hover:border-blue-200 hover:bg-blue-50/40 transition-colors shadow-sm"
                 >
                   <div
                     className={cn(
@@ -653,8 +653,8 @@ export const ExpenseInsights: React.FC = () => {
                         : `${expense.km.toLocaleString("pt-BR")} KM`}
                     </p>
                     <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-600">
-                      <SquarePen size={11} />
-                      Editar
+                      <ChevronRight size={11} />
+                      Ver
                     </div>
                   </div>
                 </button>
