@@ -123,7 +123,7 @@ export const ExpenseActivityDetails: React.FC = () => {
         liters: formData.type === "Combustivel" ? formData.liters : undefined,
         notes: formData.notes.trim() || undefined,
       });
-      navigate("/diagnostico", { replace: true });
+      navigate(-1);
     } catch (err) {
       console.error("Erro ao salvar atividade:", err);
       setError("Erro ao salvar. Tente novamente.");
@@ -140,7 +140,7 @@ export const ExpenseActivityDetails: React.FC = () => {
     }
 
     deleteExpense(expense.id);
-    navigate("/diagnostico", { replace: true });
+    navigate(-1);
   };
 
   return (
@@ -260,6 +260,10 @@ export const ExpenseActivityDetails: React.FC = () => {
                   value={formData.amount === 0 ? "" : formData.amount}
                   onChange={(e) => {
                     const value = Number(e.target.value);
+                    // Limita a 10 milhões
+                    if (value > 10000000) {
+                      return;
+                    }
                     setFormData((prev) => ({
                       ...prev,
                       amount: Number.isFinite(value) ? value : 0,

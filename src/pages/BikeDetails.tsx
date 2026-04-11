@@ -164,7 +164,7 @@ export const BikeDetails: React.FC = () => {
               to={`/adicionar-tarefa?bikeId=${bike.id}`}
               className="bg-rose-50 text-rose-700 h-12 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 border border-rose-100 transition-transform active:scale-95"
             >
-              <span> + Tarefa</span>
+              <span> + Tarefas</span>
             </Link>
           </div>
 

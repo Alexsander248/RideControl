@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 
 import { useApp } from "../context/AppContext";
-import { cn } from "../lib/utils";
+import { cn, formatCompactCurrency } from "../lib/utils";
 import type { Expense } from "../types";
 
 export const ExpenseInsights: React.FC = () => {
@@ -461,10 +461,7 @@ export const ExpenseInsights: React.FC = () => {
             Total gasto
           </p>
           <p className="text-xl font-bold">
-            {totalSpent.toLocaleString("pt-BR", {
-              style: "currency",
-              currency: "BRL",
-            })}
+            {formatCompactCurrency(totalSpent)}
           </p>
         </button>
 
@@ -480,10 +477,7 @@ export const ExpenseInsights: React.FC = () => {
             Média mensal
           </p>
           <p className="text-xl font-bold">
-            {avgMonthly.toLocaleString("pt-BR", {
-              style: "currency",
-              currency: "BRL",
-            })}
+            {formatCompactCurrency(avgMonthly)}
           </p>
         </button>
 
@@ -557,10 +551,7 @@ export const ExpenseInsights: React.FC = () => {
               Total
             </p>
             <p className="text-xl font-black max-w-[110px] text-center break-words">
-              {totalSpent.toLocaleString("pt-BR", {
-                style: "currency",
-                currency: "BRL",
-              })}
+              {formatCompactCurrency(totalSpent)}
             </p>
           </div>
         </div>
@@ -578,12 +569,7 @@ export const ExpenseInsights: React.FC = () => {
                 <span className="font-bold text-gray-700">{item.name}</span>
               </div>
               <div className="text-right">
-                <p className="font-bold">
-                  {item.value.toLocaleString("pt-BR", {
-                    style: "currency",
-                    currency: "BRL",
-                  })}
-                </p>
+                <p className="font-bold">{formatCompactCurrency(item.value)}</p>
                 <p className="text-xs text-gray-400 font-medium">
                   {totalSpent > 0
                     ? ((item.value / totalSpent) * 100).toFixed(1)
@@ -879,10 +865,7 @@ export const ExpenseInsights: React.FC = () => {
                         Total gasto
                       </p>
                       <p className="text-lg font-black text-gray-900">
-                        {totalSpent.toLocaleString("pt-BR", {
-                          style: "currency",
-                          currency: "BRL",
-                        })}
+                        {formatCompactCurrency(totalSpent)}
                       </p>
                     </div>
 
@@ -920,11 +903,7 @@ export const ExpenseInsights: React.FC = () => {
                     </p>
                     {hasEnoughCostData ? (
                       <p className="text-sm font-semibold text-orange-900">
-                        {totalSpent.toLocaleString("pt-BR", {
-                          style: "currency",
-                          currency: "BRL",
-                        })}{" "}
-                        ÷{" "}
+                        {formatCompactCurrency(totalSpent)} ÷{" "}
                         {totalKm.toLocaleString("pt-BR", {
                           maximumFractionDigits: 1,
                         })}{" "}

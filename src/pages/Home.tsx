@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 import { useApp } from "../context/AppContext";
-import { cn } from "../lib/utils";
+import { cn, formatCompactCurrency } from "../lib/utils";
 
 const DEFAULT_PROFILE_PHOTO = "/icons/perfil.png";
 const EXPENSE_TYPE_LABELS: Record<string, string> = {
@@ -128,10 +128,7 @@ export const Home: React.FC = () => {
             Total de gastos
           </p>
           <h2 className="text-4xl font-black mb-6">
-            {totalSpent.toLocaleString("pt-BR", {
-              style: "currency",
-              currency: "BRL",
-            })}
+            {formatCompactCurrency(totalSpent)}
           </h2>
 
           <div className="flex gap-6">

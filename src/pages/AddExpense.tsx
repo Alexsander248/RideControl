@@ -70,9 +70,16 @@ export const AddExpense: React.FC = () => {
       currency: "BRL",
     }).format(value);
 
+  const MAX_AMOUNT = 10000000; // 10 milhões
+
   const handleAmountChange = (rawValue: string) => {
     const digitsOnly = rawValue.replace(/\D/g, "");
     const nextAmount = digitsOnly ? Number(digitsOnly) / 100 : 0;
+
+    // Limita a 1 milhão
+    if (nextAmount > MAX_AMOUNT) {
+      return;
+    }
 
     setAmountInput(digitsOnly ? formatBrlCurrency(nextAmount) : "");
     setFormData((prev) => ({
@@ -111,7 +118,7 @@ export const AddExpense: React.FC = () => {
     }
 
     addExpense(formData as any);
-    navigate(`/moto/${formData.bikeId}`);
+    navigate(-1);
   };
 
   const getBikeCurrentKm = (bikeId: string) => {
