@@ -187,7 +187,7 @@ export const Auth: React.FC = () => {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.35, ease: "easeOut" }}
       >
-        <div className="mb-6 flex items-center gap-3 justify-center">
+        {/* <div className="mb-6 flex items-center gap-3 justify-center">
           <div className="w-12 h-12 rounded-2xl bg-blue-500 text-white flex items-center justify-center shadow-lg shadow-blue-200">
             <ShieldCheck size={24} />
           </div>
@@ -199,7 +199,7 @@ export const Auth: React.FC = () => {
               Acesso seguro
             </p>
           </div>
-        </div>
+        </div> */}
 
         <div className="bg-white/95 backdrop-blur rounded-[36px] border border-white shadow-[0_24px_60px_rgba(15,23,42,0.12)] overflow-hidden">
           <div className="px-7 pt-8 pb-6 bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500 text-white relative overflow-hidden">
@@ -328,6 +328,24 @@ export const Auth: React.FC = () => {
               )}
             </button>
 
+            {message &&
+              (messageType === "error" ? (
+                <div className="text-xs font-semibold text-red-700 bg-red-50 border border-red-100 rounded-2xl p-3 flex items-start gap-2">
+                  <AlertTriangle size={14} className="mt-[2px] shrink-0" />
+                  <span>{message}</span>
+                </div>
+              ) : (
+                <p className="text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-100 rounded-2xl p-3">
+                  {message}
+                </p>
+              ))}
+
+            {cloudSyncError && (
+              <p className="text-xs font-semibold text-red-600 bg-red-50 border border-red-100 rounded-2xl p-3">
+                {cloudSyncError}
+              </p>
+            )}
+
             <div className="grid grid-cols-1 gap-3 rounded-3xl bg-blue-50/70 p-4 border border-blue-100">
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center text-blue-600 shrink-0">
@@ -359,24 +377,6 @@ export const Auth: React.FC = () => {
                   isso, login, cadastro e sincronização não conseguem operar.
                 </p>
               </div>
-            )}
-
-            {message &&
-              (messageType === "error" ? (
-                <div className="text-xs font-semibold text-red-700 bg-red-50 border border-red-100 rounded-2xl p-3 flex items-start gap-2">
-                  <AlertTriangle size={14} className="mt-[2px] shrink-0" />
-                  <span>{message}</span>
-                </div>
-              ) : (
-                <p className="text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-100 rounded-2xl p-3">
-                  {message}
-                </p>
-              ))}
-
-            {cloudSyncError && (
-              <p className="text-xs font-semibold text-red-600 bg-red-50 border border-red-100 rounded-2xl p-3">
-                {cloudSyncError}
-              </p>
             )}
 
             <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-[0.2em] text-gray-400">
