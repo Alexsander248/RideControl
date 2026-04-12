@@ -15,7 +15,7 @@ import type {
   UserProfile,
   NotificationSettings,
 } from "../types";
-import { supabase, isSupabaseConfigured } from "../lib/supabase";
+import { supabase, isSupabaseConfigured, getAppBaseUrl } from "../lib/supabase";
 
 interface AppContextType extends AppState {
   isProfileComplete: boolean;
@@ -295,12 +295,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const signUpCloud = async (email: string, password: string) => {
     if (!supabase) return "Supabase não configurado.";
-    const redirectTo = `${window.location.origin}/auth`;
+    const baseUrl = getAppBaseUrl();
+    const redirectTo = baseUrl ? `${baseUrl}/auth` : undefined;
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: redirectTo,
+        ...(redirectTo ? { emailRedirectTo: redirectTo } : {}),
       },
     });
 

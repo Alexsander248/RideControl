@@ -86,7 +86,7 @@ export const Auth: React.FC = () => {
       setActiveTab("login");
       setPassword("");
       setMessage(
-        "Conta criada. Verifique seu email e depois volte para entrar.",
+        "Conta criada. Verifique seu email para confirmar e depois entre no app.",
       );
       return;
     }

@@ -89,6 +89,7 @@ O app agora suporta autenticação e backup em nuvem via Supabase.
 No `.env`:
 
 ```bash
+VITE_APP_URL="https://SEU-DOMINIO-PUBLICO"
 VITE_SUPABASE_URL="https://SEU-PROJETO.supabase.co"
 VITE_SUPABASE_ANON_KEY="SUA_CHAVE_ANON"
 ```
@@ -128,7 +129,7 @@ Por isso, execute o bloco inteiro acima exatamente nessa ordem.
 - Após login, o app sincroniza automaticamente
 - Botão "Sincronizar agora" força upload imediato
 - Ao trocar de celular, basta fazer login na mesma conta
-- O email de confirmação é enviado com redirect para `/auth` do próprio app
+- O email de confirmação é enviado com redirect para `${VITE_APP_URL}/auth`
 
 ### 4) Configuração obrigatória no Supabase
 
