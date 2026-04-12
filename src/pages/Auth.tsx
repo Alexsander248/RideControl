@@ -10,13 +10,58 @@ import {
   Database,
   Lock,
   MailCheck,
+  AlertTriangle,
 } from "lucide-react";
 
 import { useApp } from "../context/AppContext";
 
 const PASSWORD_MIN_LENGTH = 6;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type AuthTab = "login" | "signup";
+
+const mapAuthError = (rawError: string, mode: AuthTab) => {
+  const normalized = rawError.toLowerCase();
+
+  if (
+    normalized.includes("invalid login credentials") ||
+    normalized.includes("invalid credentials") ||
+    normalized.includes("invalid_grant") ||
+    normalized.includes("senha")
+  ) {
+    return "Email ou senha incorretos. Confira os dados e tente novamente.";
+  }
+
+  if (
+    normalized.includes("email not confirmed") ||
+    normalized.includes("not confirmed")
+  ) {
+    return "Seu email ainda não foi confirmado. Verifique sua caixa de entrada.";
+  }
+
+  if (
+    normalized.includes("user already registered") ||
+    normalized.includes("already registered") ||
+    normalized.includes("already exists") ||
+    normalized.includes("duplicate")
+  ) {
+    return "Já existe uma conta com este email. Faça login ou recupere a senha.";
+  }
+
+  if (normalized.includes("password should be")) {
+    return `A senha precisa ter no mínimo ${PASSWORD_MIN_LENGTH} caracteres.`;
+  }
+
+  if (normalized.includes("rate limit") || normalized.includes("too many")) {
+    return "Muitas tentativas em sequência. Aguarde um momento e tente novamente.";
+  }
+
+  if (mode === "signup") {
+    return "Não foi possível criar sua conta agora. Tente novamente em instantes.";
+  }
+
+  return "Não foi possível concluir o login agora. Tente novamente em instantes.";
+};
 
 export const Auth: React.FC = () => {
   const {
@@ -33,9 +78,12 @@ export const Auth: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AuthTab>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [verificationSent, setVerificationSent] = useState(false);
+  const [messageType, setMessageType] = useState<"info" | "error">("info");
+  const isSignUp = activeTab === "signup";
 
   const fromPath =
     (location.state as { from?: { pathname?: string } } | undefined)?.from
@@ -49,17 +97,32 @@ export const Auth: React.FC = () => {
 
   const validateForm = () => {
     if (!email.trim() || !password.trim()) {
+      setMessageType("error");
       setMessage("Informe email e senha.");
       return false;
     }
 
-    if (!email.includes("@")) {
+    if (!EMAIL_REGEX.test(email.trim())) {
+      setMessageType("error");
       setMessage("Informe um email válido.");
       return false;
     }
 
-    if (activeTab === "signup" && password.length < PASSWORD_MIN_LENGTH) {
+    if (isSignUp && password.length < PASSWORD_MIN_LENGTH) {
+      setMessageType("error");
       setMessage("A senha deve ter pelo menos 6 caracteres.");
+      return false;
+    }
+
+    if (isSignUp && !confirmPassword.trim()) {
+      setMessageType("error");
+      setMessage("Confirme sua senha para concluir o cadastro.");
+      return false;
+    }
+
+    if (isSignUp && password !== confirmPassword) {
+      setMessageType("error");
+      setMessage("As senhas não coincidem. Revise e tente novamente.");
       return false;
     }
 
@@ -68,6 +131,7 @@ export const Auth: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!isCloudConfigured) {
+      setMessageType("error");
       setMessage(
         "O Supabase não está configurado neste ambiente. Configure as variáveis na Vercel para habilitar login e cadastro.",
       );
@@ -93,14 +157,17 @@ export const Auth: React.FC = () => {
     }
 
     if (error) {
-      setMessage(error);
+      setMessageType("error");
+      setMessage(mapAuthError(error, activeTab));
       return;
     }
 
-    if (activeTab === "signup") {
+    if (isSignUp) {
       setActiveTab("login");
       setPassword("");
+      setConfirmPassword("");
       setVerificationSent(true);
+      setMessageType("info");
       setMessage(
         "Conta criada. Verifique seu email para confirmar e depois entre no app.",
       );
@@ -108,6 +175,7 @@ export const Auth: React.FC = () => {
     }
 
     setVerificationSent(false);
+    setMessageType("info");
     setMessage("Login concluído. Sincronizando dados...");
   };
 
@@ -139,14 +207,15 @@ export const Auth: React.FC = () => {
             <div className="absolute -left-6 bottom-0 w-24 h-24 rounded-full bg-white/10" />
             <div className="relative z-10 flex items-center gap-2 mb-4 text-white/90 text-xs font-black uppercase tracking-[0.22em]">
               <Sparkles size={14} />
-              Login
+              {isSignUp ? "Cadastro" : "Login"}
             </div>
             <h2 className="text-3xl font-black leading-tight max-w-[12ch]">
-              Entre para liberar o app
+              {isSignUp ? "Crie sua conta" : "Entre para liberar o app"}
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-white/90 max-w-[28ch]">
-              Seus dados ficam sincronizados em nuvem e disponíveis em qualquer
-              aparelho quando você entra com sua conta.
+              {isSignUp
+                ? "Crie seu acesso para sincronizar seus dados entre dispositivos com segurança."
+                : "Seus dados ficam sincronizados em nuvem e disponíveis em qualquer aparelho quando você entra com sua conta."}
             </p>
           </div>
 
@@ -173,7 +242,10 @@ export const Auth: React.FC = () => {
             <div className="grid grid-cols-2 rounded-2xl bg-gray-100 p-1">
               <button
                 type="button"
-                onClick={() => setActiveTab("login")}
+                onClick={() => {
+                  setActiveTab("login");
+                  setMessage(null);
+                }}
                 className={`h-11 rounded-2xl text-sm font-black transition-colors ${
                   activeTab === "login"
                     ? "bg-white text-blue-600 shadow-sm"
@@ -184,7 +256,10 @@ export const Auth: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab("signup")}
+                onClick={() => {
+                  setActiveTab("signup");
+                  setMessage(null);
+                }}
                 className={`h-11 rounded-2xl text-sm font-black transition-colors ${
                   activeTab === "signup"
                     ? "bg-white text-blue-600 shadow-sm"
@@ -214,11 +289,21 @@ export const Auth: React.FC = () => {
                 }
                 className="w-full h-14 rounded-2xl bg-gray-50 border border-gray-100 px-4 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20"
               />
-              {activeTab === "signup" && (
-                <p className="text-[11px] text-gray-400 font-medium leading-relaxed">
-                  A senha precisa ter no mínimo {PASSWORD_MIN_LENGTH}{" "}
-                  caracteres.
-                </p>
+              {isSignUp && (
+                <>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirmar senha"
+                    autoComplete="new-password"
+                    className="w-full h-14 rounded-2xl bg-gray-50 border border-gray-100 px-4 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                  <p className="text-[11px] text-gray-400 font-medium leading-relaxed">
+                    A senha precisa ter no mínimo {PASSWORD_MIN_LENGTH}{" "}
+                    caracteres.
+                  </p>
+                </>
               )}
             </div>
 
@@ -230,7 +315,7 @@ export const Auth: React.FC = () => {
             >
               {loading ? (
                 "Aguarde..."
-              ) : activeTab === "login" ? (
+              ) : !isSignUp ? (
                 <>
                   <Lock size={18} />
                   Entrar e sincronizar
@@ -276,11 +361,17 @@ export const Auth: React.FC = () => {
               </div>
             )}
 
-            {message && (
-              <p className="text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-100 rounded-2xl p-3">
-                {message}
-              </p>
-            )}
+            {message &&
+              (messageType === "error" ? (
+                <div className="text-xs font-semibold text-red-700 bg-red-50 border border-red-100 rounded-2xl p-3 flex items-start gap-2">
+                  <AlertTriangle size={14} className="mt-[2px] shrink-0" />
+                  <span>{message}</span>
+                </div>
+              ) : (
+                <p className="text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-100 rounded-2xl p-3">
+                  {message}
+                </p>
+              ))}
 
             {cloudSyncError && (
               <p className="text-xs font-semibold text-red-600 bg-red-50 border border-red-100 rounded-2xl p-3">
