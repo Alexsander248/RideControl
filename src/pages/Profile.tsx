@@ -162,10 +162,15 @@ export const Profile: React.FC = () => {
           </p>
 
           {!isCloudConfigured ? (
-            <p className="text-sm text-gray-500 font-medium">
-              Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY para ativar
-              backup e sincronização entre dispositivos.
-            </p>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+              <p className="text-xs font-black uppercase tracking-[0.2em] mb-1">
+                Supabase ausente
+              </p>
+              <p className="text-sm font-medium leading-relaxed">
+                Configure VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY na
+                Vercel para ativar backup e sincronização entre dispositivos.
+              </p>
+            </div>
           ) : isCloudAuthenticated ? (
             <div className="space-y-3">
               <p className="text-sm font-bold text-gray-700">

@@ -67,6 +67,13 @@ export const Auth: React.FC = () => {
   };
 
   const handleSubmit = async () => {
+    if (!isCloudConfigured) {
+      setMessage(
+        "O Supabase não está configurado neste ambiente. Configure as variáveis na Vercel para habilitar login e cadastro.",
+      );
+      return;
+    }
+
     if (!validateForm()) return;
 
     setLoading(true);
@@ -211,7 +218,7 @@ export const Auth: React.FC = () => {
 
             <button
               type="button"
-              disabled={loading}
+              disabled={loading || !isCloudConfigured}
               onClick={() => void handleSubmit()}
               className="w-full h-14 rounded-2xl bg-blue-600 text-white font-black flex items-center justify-center gap-2 shadow-lg shadow-blue-200 transition-transform active:scale-[0.99] disabled:opacity-60"
             >
@@ -252,10 +259,15 @@ export const Auth: React.FC = () => {
             </div>
 
             {!isCloudConfigured && (
-              <p className="text-xs font-medium text-amber-600 bg-amber-50 border border-amber-100 rounded-2xl p-3">
-                Configure as variáveis do Supabase para ativar o login real e a
-                sincronização.
-              </p>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+                <p className="text-xs font-black uppercase tracking-[0.2em] mb-1">
+                  Supabase ausente
+                </p>
+                <p className="text-xs font-medium leading-relaxed">
+                  A build publicada não encontrou as variáveis do Supabase. Sem
+                  isso, login, cadastro e sincronização não conseguem operar.
+                </p>
+              </div>
             )}
 
             {message && (
