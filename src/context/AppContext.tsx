@@ -26,6 +26,8 @@ interface AppContextType extends AppState {
   isCloudConfigured: boolean;
   isCloudAuthenticated: boolean;
   cloudUserEmail: string | null;
+  cloudBootProgress: number;
+  cloudBootStatus: string;
   cloudSyncStatus: "idle" | "syncing" | "error";
   cloudSyncError: string | null;
   addBike: (bike: Omit<Bike, "id">) => void;
@@ -146,6 +148,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const [cloudUser, setCloudUser] = useState<User | null>(null);
   const [isCloudReady, setIsCloudReady] = useState(false);
   const [isCloudHydrating, setIsCloudHydrating] = useState(false);
+  const [cloudBootProgress, setCloudBootProgress] = useState(0);
+  const [cloudBootStatus, setCloudBootStatus] = useState("Inicializando");
   const [cloudSyncStatus, setCloudSyncStatus] = useState<
     "idle" | "syncing" | "error"
   >("idle");
@@ -175,6 +179,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       console.error("Erro ao salvar dados no localStorage:", error);
     }
   }, [state, cloudUser]);
+
+  const setBootStep = (progress: number, status: string) => {
+    setCloudBootProgress((prev) => Math.max(prev, progress));
+    setCloudBootStatus(status);
+  };
 
   const loadLocalStateForUser = (userId: string | null) => {
     const saved = localStorage.getItem(getStorageKey(userId));
@@ -328,7 +337,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase) {
+      setIsCloudReady(true);
+      setIsCloudHydrating(false);
+      setCloudBootProgress(100);
+      setCloudBootStatus("Concluído");
+      return;
+    }
     const client = supabase;
 
     let isMounted = true;
@@ -336,35 +351,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     const hydrateUserSession = async (nextUser: User | null) => {
       if (!isMounted) return;
 
+      setBootStep(15, "Verificando sessão");
+
       if (!nextUser) {
         setCloudUser(null);
         setIsCloudHydrating(false);
         setState(createDefaultState());
         setIsCloudReady(true);
+        setCloudBootProgress(100);
+        setCloudBootStatus("Concluído");
         return;
       }
 
       setCloudUser(nextUser);
       setIsCloudReady(false);
       setIsCloudHydrating(true);
+      setBootStep(35, "Sessão encontrada");
 
       const localState = loadLocalStateForUser(nextUser.id);
+      setBootStep(55, "Carregando dados locais");
       setState(localState);
 
       try {
+        setBootStep(75, "Sincronizando com a nuvem");
         await pullCloudState(nextUser.id, localState);
       } finally {
         if (isMounted) {
           setIsCloudHydrating(false);
           setIsCloudReady(true);
+          setCloudBootProgress(100);
+          setCloudBootStatus("Concluído");
         }
       }
     };
 
     const bootstrap = async () => {
-      const { data } = await client.auth.getUser();
-      if (!isMounted) return;
-      await hydrateUserSession(data.user || null);
+      try {
+        const { data } = await client.auth.getUser();
+        if (!isMounted) return;
+        await hydrateUserSession(data.user || null);
+      } catch (error) {
+        console.error("Erro ao inicializar sessão na nuvem:", error);
+        if (isMounted) {
+          setCloudUser(null);
+          setIsCloudHydrating(false);
+          setState(createDefaultState());
+          setIsCloudReady(true);
+          setCloudBootProgress(100);
+          setCloudBootStatus("Modo offline local");
+        }
+      }
     };
 
     bootstrap();
@@ -614,6 +650,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         isCloudConfigured: isSupabaseConfigured,
         isCloudAuthenticated: Boolean(cloudUser),
         cloudUserEmail: cloudUser?.email ?? null,
+        cloudBootProgress,
+        cloudBootStatus,
         cloudSyncStatus,
         cloudSyncError,
         addBike,
