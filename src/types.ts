@@ -54,6 +54,20 @@ export interface NotificationSettings {
   daysBefore: number;
 }
 
+export interface SyncCollectionsMeta {
+  bikes: Record<string, number>;
+  expenses: Record<string, number>;
+  tasks: Record<string, number>;
+}
+
+export interface AppSyncMeta {
+  items: SyncCollectionsMeta;
+  deleted: SyncCollectionsMeta;
+  userProfileUpdatedAt: number;
+  notificationSettingsUpdatedAt: number;
+  tutorialViewedUpdatedAt: number;
+}
+
 export interface AppState {
   bikes: Bike[];
   expenses: Expense[];
@@ -61,4 +75,5 @@ export interface AppState {
   userProfile: UserProfile;
   notificationSettings: NotificationSettings;
   tutorialViewed: boolean;
+  syncMeta?: AppSyncMeta;
 }

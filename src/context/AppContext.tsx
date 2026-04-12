@@ -12,6 +12,8 @@ import type {
   Expense,
   MaintenanceTask,
   AppState,
+  AppSyncMeta,
+  SyncCollectionsMeta,
   UserProfile,
   NotificationSettings,
 } from "../types";
@@ -63,16 +65,237 @@ const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   daysBefore: 3,
 };
 
+type SyncCollectionKey = keyof SyncCollectionsMeta;
+
 const getStorageKey = (userId: string | null) =>
   `${STORAGE_KEY_PREFIX}:${userId || "guest"}`;
 
 const getUpdatedAtKey = (userId: string | null) =>
   `${LOCAL_UPDATED_AT_PREFIX}:${userId || "guest"}`;
 
+const nowTs = () => Date.now();
+
+const sanitizeTimestamp = (value: unknown, fallback: number) => {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return value;
+  }
+  return fallback;
+};
+
+const createEmptyCollectionsMeta = (): SyncCollectionsMeta => ({
+  bikes: {},
+  expenses: {},
+  tasks: {},
+});
+
+const createDefaultSyncMeta = (timestamp: number): AppSyncMeta => ({
+  items: createEmptyCollectionsMeta(),
+  deleted: createEmptyCollectionsMeta(),
+  userProfileUpdatedAt: timestamp,
+  notificationSettingsUpdatedAt: timestamp,
+  tutorialViewedUpdatedAt: timestamp,
+});
+
+const cloneSyncMeta = (syncMeta: AppSyncMeta): AppSyncMeta => ({
+  items: {
+    bikes: { ...syncMeta.items.bikes },
+    expenses: { ...syncMeta.items.expenses },
+    tasks: { ...syncMeta.items.tasks },
+  },
+  deleted: {
+    bikes: { ...syncMeta.deleted.bikes },
+    expenses: { ...syncMeta.deleted.expenses },
+    tasks: { ...syncMeta.deleted.tasks },
+  },
+  userProfileUpdatedAt: syncMeta.userProfileUpdatedAt,
+  notificationSettingsUpdatedAt: syncMeta.notificationSettingsUpdatedAt,
+  tutorialViewedUpdatedAt: syncMeta.tutorialViewedUpdatedAt,
+});
+
+const sanitizeRecordTimestamps = (
+  record: Record<string, unknown> | undefined,
+  fallback: number,
+) => {
+  const safeRecord: Record<string, number> = {};
+  Object.entries(record || {}).forEach(([id, value]) => {
+    safeRecord[id] = sanitizeTimestamp(value, fallback);
+  });
+  return safeRecord;
+};
+
+const buildCollectionSyncMap = <T extends { id: string }>(
+  items: T[],
+  rawMap: Record<string, unknown> | undefined,
+  fallback: number,
+) => {
+  const safeRecord = sanitizeRecordTimestamps(rawMap, fallback);
+  const output: Record<string, number> = {};
+
+  items.forEach((item) => {
+    output[item.id] = safeRecord[item.id] ?? fallback;
+  });
+
+  return output;
+};
+
+const touchCollectionItem = (
+  syncMeta: AppSyncMeta,
+  collection: SyncCollectionKey,
+  id: string,
+  timestamp: number,
+) => {
+  syncMeta.items[collection][id] = timestamp;
+  delete syncMeta.deleted[collection][id];
+};
+
+const markCollectionDeleted = (
+  syncMeta: AppSyncMeta,
+  collection: SyncCollectionKey,
+  id: string,
+  timestamp: number,
+) => {
+  delete syncMeta.items[collection][id];
+  syncMeta.deleted[collection][id] = timestamp;
+};
+
+const getCollectionTimestamp = (
+  syncMeta: AppSyncMeta,
+  collection: SyncCollectionKey,
+  id: string,
+  fallback: number,
+) => syncMeta.items[collection][id] ?? fallback;
+
+const normalizeSyncMeta = (
+  source: Partial<AppSyncMeta> | undefined,
+  bikes: Bike[],
+  expenses: Expense[],
+  tasks: MaintenanceTask[],
+  fallback: number,
+): AppSyncMeta => {
+  const fallbackSync = createDefaultSyncMeta(fallback);
+
+  return {
+    items: {
+      bikes: buildCollectionSyncMap(
+        bikes,
+        source?.items?.bikes as Record<string, unknown> | undefined,
+        fallback,
+      ),
+      expenses: buildCollectionSyncMap(
+        expenses,
+        source?.items?.expenses as Record<string, unknown> | undefined,
+        fallback,
+      ),
+      tasks: buildCollectionSyncMap(
+        tasks,
+        source?.items?.tasks as Record<string, unknown> | undefined,
+        fallback,
+      ),
+    },
+    deleted: {
+      bikes: sanitizeRecordTimestamps(
+        source?.deleted?.bikes as Record<string, unknown> | undefined,
+        fallback,
+      ),
+      expenses: sanitizeRecordTimestamps(
+        source?.deleted?.expenses as Record<string, unknown> | undefined,
+        fallback,
+      ),
+      tasks: sanitizeRecordTimestamps(
+        source?.deleted?.tasks as Record<string, unknown> | undefined,
+        fallback,
+      ),
+    },
+    userProfileUpdatedAt: sanitizeTimestamp(
+      source?.userProfileUpdatedAt,
+      fallbackSync.userProfileUpdatedAt,
+    ),
+    notificationSettingsUpdatedAt: sanitizeTimestamp(
+      source?.notificationSettingsUpdatedAt,
+      fallbackSync.notificationSettingsUpdatedAt,
+    ),
+    tutorialViewedUpdatedAt: sanitizeTimestamp(
+      source?.tutorialViewedUpdatedAt,
+      fallbackSync.tutorialViewedUpdatedAt,
+    ),
+  };
+};
+
+const mergeCollectionByTimestamp = <T extends { id: string }>(
+  localItems: T[],
+  remoteItems: T[],
+  localSyncMeta: AppSyncMeta,
+  remoteSyncMeta: AppSyncMeta,
+  collection: SyncCollectionKey,
+  localBaseTs: number,
+  remoteBaseTs: number,
+) => {
+  const localMap = new Map(localItems.map((item) => [item.id, item]));
+  const remoteMap = new Map(remoteItems.map((item) => [item.id, item]));
+
+  const idSet = new Set<string>([
+    ...localMap.keys(),
+    ...remoteMap.keys(),
+    ...Object.keys(localSyncMeta.deleted[collection]),
+    ...Object.keys(remoteSyncMeta.deleted[collection]),
+  ]);
+
+  const mergedItems: T[] = [];
+  const mergedItemsMeta: Record<string, number> = {};
+  const mergedDeletedMeta: Record<string, number> = {};
+
+  idSet.forEach((id) => {
+    const localItem = localMap.get(id);
+    const remoteItem = remoteMap.get(id);
+    const localItemTs = localItem
+      ? getCollectionTimestamp(localSyncMeta, collection, id, localBaseTs)
+      : -1;
+    const remoteItemTs = remoteItem
+      ? getCollectionTimestamp(remoteSyncMeta, collection, id, remoteBaseTs)
+      : -1;
+    const localDeletedTs = localSyncMeta.deleted[collection][id] ?? -1;
+    const remoteDeletedTs = remoteSyncMeta.deleted[collection][id] ?? -1;
+
+    const latestTs = Math.max(
+      localItemTs,
+      remoteItemTs,
+      localDeletedTs,
+      remoteDeletedTs,
+    );
+
+    if (latestTs < 0) {
+      return;
+    }
+
+    if (latestTs === localDeletedTs || latestTs === remoteDeletedTs) {
+      mergedDeletedMeta[id] = latestTs;
+      return;
+    }
+
+    const pickRemote = remoteItemTs >= localItemTs;
+    const chosenItem =
+      (pickRemote ? remoteItem : localItem) || remoteItem || localItem;
+
+    if (!chosenItem) {
+      return;
+    }
+
+    mergedItems.push(chosenItem);
+    mergedItemsMeta[id] = latestTs;
+  });
+
+  return {
+    items: mergedItems,
+    itemsMeta: mergedItemsMeta,
+    deletedMeta: mergedDeletedMeta,
+  };
+};
+
 const normalizeState = (
   parsed: Partial<AppState> | null | undefined,
   defaultProfile: UserProfile,
   installYear: number,
+  fallbackTimestamp: number,
 ): AppState => {
   const source = parsed || {};
   const savedMemberSince = source.userProfile?.memberSince;
@@ -83,13 +306,17 @@ const normalizeState = (
         : savedMemberSince
       : installYear;
 
+  const bikes = (source.bikes || []).map((bike) => ({
+    ...bike,
+    initialKm: bike.initialKm ?? bike.currentKm,
+  }));
+  const expenses = source.expenses || [];
+  const tasks = source.tasks || [];
+
   return {
-    bikes: (source.bikes || []).map((bike) => ({
-      ...bike,
-      initialKm: bike.initialKm ?? bike.currentKm,
-    })),
-    expenses: source.expenses || [],
-    tasks: source.tasks || [],
+    bikes,
+    expenses,
+    tasks,
     userProfile: {
       ...defaultProfile,
       ...(source.userProfile || {}),
@@ -100,6 +327,13 @@ const normalizeState = (
       ...(source.notificationSettings || {}),
     },
     tutorialViewed: Boolean(source.tutorialViewed),
+    syncMeta: normalizeSyncMeta(
+      source.syncMeta,
+      bikes,
+      expenses,
+      tasks,
+      fallbackTimestamp,
+    ),
   };
 };
 
@@ -159,7 +393,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const createDefaultState = (): AppState =>
-    normalizeState(null, defaultProfile, installYear);
+    normalizeState(null, defaultProfile, installYear, nowTs());
 
   const [state, setState] = useState<AppState>(() => createDefaultState());
 
@@ -203,6 +437,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     setCloudBootStatus(status);
   };
 
+  const getMutableSyncMeta = (appState: AppState, timestamp: number) =>
+    cloneSyncMeta(appState.syncMeta || createDefaultSyncMeta(timestamp));
+
   const loadLocalStateForUser = (userId: string | null) => {
     const saved = localStorage.getItem(getStorageKey(userId));
 
@@ -215,6 +452,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         JSON.parse(saved) as Partial<AppState>,
         defaultProfile,
         installYear,
+        nowTs(),
       );
     } catch {
       return createDefaultState();
@@ -239,6 +477,113 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  const mergeAppStates = (
+    localState: AppState,
+    remoteState: AppState,
+    localBaseTs: number,
+    remoteBaseTs: number,
+  ) => {
+    const localSyncMeta =
+      localState.syncMeta || createDefaultSyncMeta(localBaseTs);
+    const remoteSyncMeta =
+      remoteState.syncMeta || createDefaultSyncMeta(remoteBaseTs);
+
+    const mergedBikes = mergeCollectionByTimestamp(
+      localState.bikes,
+      remoteState.bikes,
+      localSyncMeta,
+      remoteSyncMeta,
+      "bikes",
+      localBaseTs,
+      remoteBaseTs,
+    );
+
+    const mergedExpenses = mergeCollectionByTimestamp(
+      localState.expenses,
+      remoteState.expenses,
+      localSyncMeta,
+      remoteSyncMeta,
+      "expenses",
+      localBaseTs,
+      remoteBaseTs,
+    );
+
+    const mergedTasks = mergeCollectionByTimestamp(
+      localState.tasks,
+      remoteState.tasks,
+      localSyncMeta,
+      remoteSyncMeta,
+      "tasks",
+      localBaseTs,
+      remoteBaseTs,
+    );
+
+    const useRemoteProfile =
+      remoteSyncMeta.userProfileUpdatedAt >= localSyncMeta.userProfileUpdatedAt;
+    const useRemoteNotifications =
+      remoteSyncMeta.notificationSettingsUpdatedAt >=
+      localSyncMeta.notificationSettingsUpdatedAt;
+    const useRemoteTutorial =
+      remoteSyncMeta.tutorialViewedUpdatedAt >=
+      localSyncMeta.tutorialViewedUpdatedAt;
+
+    return normalizeState(
+      {
+        bikes: mergedBikes.items,
+        expenses: mergedExpenses.items,
+        tasks: mergedTasks.items,
+        userProfile: useRemoteProfile
+          ? remoteState.userProfile
+          : localState.userProfile,
+        notificationSettings: useRemoteNotifications
+          ? remoteState.notificationSettings
+          : localState.notificationSettings,
+        tutorialViewed: useRemoteTutorial
+          ? remoteState.tutorialViewed
+          : localState.tutorialViewed,
+        syncMeta: {
+          items: {
+            bikes: mergedBikes.itemsMeta,
+            expenses: mergedExpenses.itemsMeta,
+            tasks: mergedTasks.itemsMeta,
+          },
+          deleted: {
+            bikes: {
+              ...localSyncMeta.deleted.bikes,
+              ...remoteSyncMeta.deleted.bikes,
+              ...mergedBikes.deletedMeta,
+            },
+            expenses: {
+              ...localSyncMeta.deleted.expenses,
+              ...remoteSyncMeta.deleted.expenses,
+              ...mergedExpenses.deletedMeta,
+            },
+            tasks: {
+              ...localSyncMeta.deleted.tasks,
+              ...remoteSyncMeta.deleted.tasks,
+              ...mergedTasks.deletedMeta,
+            },
+          },
+          userProfileUpdatedAt: Math.max(
+            localSyncMeta.userProfileUpdatedAt,
+            remoteSyncMeta.userProfileUpdatedAt,
+          ),
+          notificationSettingsUpdatedAt: Math.max(
+            localSyncMeta.notificationSettingsUpdatedAt,
+            remoteSyncMeta.notificationSettingsUpdatedAt,
+          ),
+          tutorialViewedUpdatedAt: Math.max(
+            localSyncMeta.tutorialViewedUpdatedAt,
+            remoteSyncMeta.tutorialViewedUpdatedAt,
+          ),
+        },
+      },
+      defaultProfile,
+      installYear,
+      Math.max(localBaseTs, remoteBaseTs, nowTs()),
+    );
+  };
+
   const pullCloudState = async (
     userId: string,
     localStateSnapshot: AppState = state,
@@ -247,6 +592,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
     setCloudSyncStatus("syncing");
     setCloudSyncError(null);
+
+    const localUpdatedAt = Number(
+      localStorage.getItem(getUpdatedAtKey(userId)),
+    );
+    const safeLocalUpdatedAt = Number.isFinite(localUpdatedAt)
+      ? localUpdatedAt
+      : nowTs();
 
     const { data, error } = await supabase
       .from(CLOUD_STATE_TABLE)
@@ -260,8 +612,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       return;
     }
 
+    const normalizedLocal = normalizeState(
+      localStateSnapshot,
+      defaultProfile,
+      installYear,
+      safeLocalUpdatedAt,
+    );
+
     if (!data) {
-      await upsertCloudState(userId, localStateSnapshot);
+      await upsertCloudState(userId, normalizedLocal);
+      localStorage.setItem(getUpdatedAtKey(userId), String(nowTs()));
       setCloudSyncStatus("idle");
       return;
     }
@@ -269,21 +629,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     const remoteUpdatedAt = new Date(data.updated_at).getTime();
     const safeRemoteUpdatedAt = Number.isFinite(remoteUpdatedAt)
       ? remoteUpdatedAt
-      : 0;
+      : nowTs();
+
     const remoteState = normalizeState(
       data.data as Partial<AppState>,
       defaultProfile,
       installYear,
+      safeRemoteUpdatedAt,
     );
 
-    // Em múltiplos dispositivos, o estado remoto é a fonte de verdade no login
-    // para evitar sobrescrita por snapshots locais antigos.
+    const mergedState = mergeAppStates(
+      normalizedLocal,
+      remoteState,
+      safeLocalUpdatedAt,
+      safeRemoteUpdatedAt,
+    );
+
     isApplyingRemoteState.current = true;
-    setState(remoteState);
-    localStorage.setItem(getUpdatedAtKey(userId), String(safeRemoteUpdatedAt));
+    setState(mergedState);
+    localStorage.setItem(
+      getUpdatedAtKey(userId),
+      String(Math.max(safeLocalUpdatedAt, safeRemoteUpdatedAt, nowTs())),
+    );
     queueMicrotask(() => {
       isApplyingRemoteState.current = false;
     });
+
+    const mergedPayload = JSON.stringify(mergedState);
+    const remotePayload = JSON.stringify(remoteState);
+
+    if (mergedPayload !== remotePayload) {
+      await upsertCloudState(userId, mergedState);
+    }
 
     setCloudSyncStatus("idle");
   };
@@ -468,16 +845,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [state, cloudUser]);
 
   const addBike = (bikeData: Omit<Bike, "id">) => {
+    const timestamp = nowTs();
     const newBike: Bike = {
       ...bikeData,
       id: generateId(),
       initialKm: bikeData.initialKm ?? bikeData.currentKm,
       isFavorite: bikeData.isFavorite ?? false,
     };
-    setState((prev) => ({ ...prev, bikes: [...prev.bikes, newBike] }));
+
+    setState((prev) => {
+      const syncMeta = getMutableSyncMeta(prev, timestamp);
+      touchCollectionItem(syncMeta, "bikes", newBike.id, timestamp);
+
+      return {
+        ...prev,
+        bikes: [...prev.bikes, newBike],
+        syncMeta,
+      };
+    });
   };
 
   const updateBike = (bike: Bike) => {
+    const timestamp = nowTs();
+
     setState((prev) => {
       const existingBike = prev.bikes.find((b) => b.id === bike.id);
       const hasBikeExpenses = prev.expenses.some((e) => e.bikeId === bike.id);
@@ -489,29 +879,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         initialKm: hasBikeExpenses ? persistedInitialKm : bike.currentKm,
       };
 
+      const syncMeta = getMutableSyncMeta(prev, timestamp);
+      touchCollectionItem(syncMeta, "bikes", bike.id, timestamp);
+
       return {
         ...prev,
         bikes: prev.bikes.map((b) => (b.id === bike.id ? nextBike : b)),
+        syncMeta,
       };
     });
   };
 
   const toggleFavoriteBike = (id: string) => {
-    setState((prev) => ({
-      ...prev,
-      bikes: prev.bikes.map((bike) =>
-        bike.id === id ? { ...bike, isFavorite: !bike.isFavorite } : bike,
-      ),
-    }));
+    const timestamp = nowTs();
+
+    setState((prev) => {
+      const syncMeta = getMutableSyncMeta(prev, timestamp);
+      touchCollectionItem(syncMeta, "bikes", id, timestamp);
+
+      return {
+        ...prev,
+        bikes: prev.bikes.map((bike) =>
+          bike.id === id ? { ...bike, isFavorite: !bike.isFavorite } : bike,
+        ),
+        syncMeta,
+      };
+    });
   };
 
   const deleteBike = (id: string) => {
-    setState((prev) => ({
-      ...prev,
-      bikes: prev.bikes.filter((b) => b.id !== id),
-      expenses: prev.expenses.filter((e) => e.bikeId !== id),
-      tasks: prev.tasks.filter((t) => t.bikeId !== id),
-    }));
+    const timestamp = nowTs();
+
+    setState((prev) => {
+      const removedExpenseIds = prev.expenses
+        .filter((expense) => expense.bikeId === id)
+        .map((expense) => expense.id);
+      const removedTaskIds = prev.tasks
+        .filter((task) => task.bikeId === id)
+        .map((task) => task.id);
+
+      const syncMeta = getMutableSyncMeta(prev, timestamp);
+      markCollectionDeleted(syncMeta, "bikes", id, timestamp);
+      removedExpenseIds.forEach((expenseId) => {
+        markCollectionDeleted(syncMeta, "expenses", expenseId, timestamp);
+      });
+      removedTaskIds.forEach((taskId) => {
+        markCollectionDeleted(syncMeta, "tasks", taskId, timestamp);
+      });
+
+      return {
+        ...prev,
+        bikes: prev.bikes.filter((b) => b.id !== id),
+        expenses: prev.expenses.filter((e) => e.bikeId !== id),
+        tasks: prev.tasks.filter((t) => t.bikeId !== id),
+        syncMeta,
+      };
+    });
   };
 
   const syncBikeKmWithExpenses = (expenses: Expense[], bikes: Bike[]) => {
@@ -528,14 +951,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       const expenseMaxKm = maxKmByBike.get(bike.id);
       const baseKm = bike.initialKm ?? bike.currentKm;
 
-      // Sem atividades: volta para o KM base de cadastro.
       if (expenseMaxKm === undefined) {
         return bike.currentKm === baseKm
           ? { ...bike, initialKm: baseKm }
           : { ...bike, currentKm: baseKm, initialKm: baseKm };
       }
 
-      // Com atividades: usa o maior KM registrado, sem descer abaixo do KM base.
       const nextKm = Math.max(baseKm, expenseMaxKm);
       return {
         ...bike,
@@ -546,93 +967,188 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const addExpense = (expenseData: Omit<Expense, "id">) => {
+    const timestamp = nowTs();
     const newExpense: Expense = { ...expenseData, id: generateId() };
+
     setState((prev) => {
       const nextExpenses = [...prev.expenses, newExpense];
+      const nextBikes = syncBikeKmWithExpenses(nextExpenses, prev.bikes);
+      const syncMeta = getMutableSyncMeta(prev, timestamp);
+
+      touchCollectionItem(syncMeta, "expenses", newExpense.id, timestamp);
+      nextBikes.forEach((bike) => {
+        if (
+          bike.currentKm !==
+          (prev.bikes.find((b) => b.id === bike.id)?.currentKm ??
+            bike.currentKm)
+        ) {
+          touchCollectionItem(syncMeta, "bikes", bike.id, timestamp);
+        }
+      });
+
       return {
         ...prev,
         expenses: nextExpenses,
-        bikes: syncBikeKmWithExpenses(nextExpenses, prev.bikes),
+        bikes: nextBikes,
+        syncMeta,
       };
     });
   };
 
   const updateExpense = (expense: Expense) => {
+    const timestamp = nowTs();
+
     setState((prev) => {
       const nextExpenses = prev.expenses.map((item) =>
         item.id === expense.id ? expense : item,
       );
+      const nextBikes = syncBikeKmWithExpenses(nextExpenses, prev.bikes);
+      const syncMeta = getMutableSyncMeta(prev, timestamp);
+
+      touchCollectionItem(syncMeta, "expenses", expense.id, timestamp);
+      nextBikes.forEach((bike) => {
+        if (
+          bike.currentKm !==
+          (prev.bikes.find((b) => b.id === bike.id)?.currentKm ??
+            bike.currentKm)
+        ) {
+          touchCollectionItem(syncMeta, "bikes", bike.id, timestamp);
+        }
+      });
+
       return {
         ...prev,
         expenses: nextExpenses,
-        bikes: syncBikeKmWithExpenses(nextExpenses, prev.bikes),
+        bikes: nextBikes,
+        syncMeta,
       };
     });
   };
 
   const deleteExpense = (id: string) => {
+    const timestamp = nowTs();
+
     setState((prev) => {
       const nextExpenses = prev.expenses.filter((item) => item.id !== id);
+      const nextBikes = syncBikeKmWithExpenses(nextExpenses, prev.bikes);
+      const syncMeta = getMutableSyncMeta(prev, timestamp);
+
+      markCollectionDeleted(syncMeta, "expenses", id, timestamp);
+      nextBikes.forEach((bike) => {
+        if (
+          bike.currentKm !==
+          (prev.bikes.find((b) => b.id === bike.id)?.currentKm ??
+            bike.currentKm)
+        ) {
+          touchCollectionItem(syncMeta, "bikes", bike.id, timestamp);
+        }
+      });
+
       return {
         ...prev,
         expenses: nextExpenses,
-        bikes: syncBikeKmWithExpenses(nextExpenses, prev.bikes),
+        bikes: nextBikes,
+        syncMeta,
       };
     });
   };
 
   const addTask = (taskData: Omit<MaintenanceTask, "id">) => {
+    const timestamp = nowTs();
     const newTask: MaintenanceTask = { ...taskData, id: generateId() };
-    setState((prev) => ({ ...prev, tasks: [...prev.tasks, newTask] }));
+
+    setState((prev) => {
+      const syncMeta = getMutableSyncMeta(prev, timestamp);
+      touchCollectionItem(syncMeta, "tasks", newTask.id, timestamp);
+
+      return {
+        ...prev,
+        tasks: [...prev.tasks, newTask],
+        syncMeta,
+      };
+    });
   };
 
   const toggleTask = (id: string) => {
-    setState((prev) => ({
-      ...prev,
-      tasks: prev.tasks.map((t) => {
-        if (t.id === id) {
-          const completed = !t.completed;
-          return {
-            ...t,
-            completed,
-            completedDate: completed ? new Date().toISOString() : undefined,
-            completedKm: completed
-              ? prev.bikes.find((b) => b.id === t.bikeId)?.currentKm
-              : undefined,
-          };
-        }
-        return t;
-      }),
-    }));
+    const timestamp = nowTs();
+
+    setState((prev) => {
+      const syncMeta = getMutableSyncMeta(prev, timestamp);
+      touchCollectionItem(syncMeta, "tasks", id, timestamp);
+
+      return {
+        ...prev,
+        tasks: prev.tasks.map((t) => {
+          if (t.id === id) {
+            const completed = !t.completed;
+            return {
+              ...t,
+              completed,
+              completedDate: completed ? new Date().toISOString() : undefined,
+              completedKm: completed
+                ? prev.bikes.find((b) => b.id === t.bikeId)?.currentKm
+                : undefined,
+            };
+          }
+          return t;
+        }),
+        syncMeta,
+      };
+    });
   };
 
   const updateUserProfile = (profile: Partial<UserProfile>) => {
-    setState((prev) => ({
-      ...prev,
-      userProfile: {
-        ...prev.userProfile,
-        ...profile,
-      },
-    }));
+    const timestamp = nowTs();
+
+    setState((prev) => {
+      const syncMeta = getMutableSyncMeta(prev, timestamp);
+      syncMeta.userProfileUpdatedAt = timestamp;
+
+      return {
+        ...prev,
+        userProfile: {
+          ...prev.userProfile,
+          ...profile,
+        },
+        syncMeta,
+      };
+    });
   };
 
   const updateNotificationSettings = (
     settings: Partial<NotificationSettings>,
   ) => {
-    setState((prev) => ({
-      ...prev,
-      notificationSettings: {
-        ...prev.notificationSettings,
-        ...settings,
-      },
-    }));
+    const timestamp = nowTs();
+
+    setState((prev) => {
+      const syncMeta = getMutableSyncMeta(prev, timestamp);
+      syncMeta.notificationSettingsUpdatedAt = timestamp;
+
+      return {
+        ...prev,
+        notificationSettings: {
+          ...prev.notificationSettings,
+          ...settings,
+        },
+        syncMeta,
+      };
+    });
   };
 
   const markTutorialViewed = () => {
-    setState((prev) => ({
-      ...prev,
-      tutorialViewed: true,
-    }));
+    const timestamp = nowTs();
+
+    setState((prev) => {
+      const syncMeta = getMutableSyncMeta(prev, timestamp);
+      syncMeta.tutorialViewedUpdatedAt = timestamp;
+
+      return {
+        ...prev,
+        tutorialViewed: true,
+        syncMeta,
+      };
+    });
+
     setIsTutorialWelcomeOpen(false);
     setIsTutorialActive(false);
     setIsTutorialWelcomeSkippable(true);
