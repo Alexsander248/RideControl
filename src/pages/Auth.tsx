@@ -9,6 +9,7 @@ import {
   CircleCheck,
   Database,
   Lock,
+  MailCheck,
 } from "lucide-react";
 
 import { useApp } from "../context/AppContext";
@@ -34,6 +35,7 @@ export const Auth: React.FC = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [verificationSent, setVerificationSent] = useState(false);
 
   const fromPath =
     (location.state as { from?: { pathname?: string } } | undefined)?.from
@@ -85,12 +87,14 @@ export const Auth: React.FC = () => {
     if (activeTab === "signup") {
       setActiveTab("login");
       setPassword("");
+      setVerificationSent(true);
       setMessage(
         "Conta criada. Verifique seu email para confirmar e depois entre no app.",
       );
       return;
     }
 
+    setVerificationSent(false);
     setMessage("Login concluído. Sincronizando dados...");
   };
 
@@ -134,6 +138,25 @@ export const Auth: React.FC = () => {
           </div>
 
           <div className="p-6 space-y-5">
+            {verificationSent && activeTab === "login" && (
+              <div className="rounded-3xl border border-emerald-100 bg-emerald-50 px-4 py-4 text-emerald-900 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-2xl bg-white flex items-center justify-center text-emerald-600 shrink-0">
+                    <MailCheck size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-black mb-1">
+                      Conta criada com sucesso
+                    </p>
+                    <p className="text-sm leading-relaxed text-emerald-900/80">
+                      Confirme o email enviado e depois faça login aqui para
+                      sincronizar seus dados.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 rounded-2xl bg-gray-100 p-1">
               <button
                 type="button"

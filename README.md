@@ -89,10 +89,14 @@ O app agora suporta autenticação e backup em nuvem via Supabase.
 No `.env`:
 
 ```bash
-VITE_APP_URL="https://SEU-DOMINIO-PUBLICO"
+APP_URL="https://ride-control.vercel.app"
+VITE_APP_URL="https://ride-control.vercel.app"
 VITE_SUPABASE_URL="https://SEU-PROJETO.supabase.co"
 VITE_SUPABASE_ANON_KEY="SUA_CHAVE_ANON"
 ```
+
+Se você não tem domínio próprio, use a URL gratuita gerada pela Vercel.
+Ela já é pública e funciona para o redirect de confirmação do Supabase.
 
 ### 2) Crie a tabela de estado no Supabase (SQL Editor)
 
@@ -129,7 +133,9 @@ Por isso, execute o bloco inteiro acima exatamente nessa ordem.
 - Após login, o app sincroniza automaticamente
 - Botão "Sincronizar agora" força upload imediato
 - Ao trocar de celular, basta fazer login na mesma conta
-- O email de confirmação é enviado com redirect para `${VITE_APP_URL}/auth`
+- O email de confirmação é enviado com redirect para `${APP_URL}/auth`
+- Se estiver testando localmente, o redirect usa `localhost`; para produção,
+  use a URL pública da Vercel
 
 ### 4) Configuração obrigatória no Supabase
 
