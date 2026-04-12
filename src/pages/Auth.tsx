@@ -79,12 +79,18 @@ export const Auth: React.FC = () => {
     setLoading(true);
     setMessage(null);
 
-    const error =
-      activeTab === "login"
-        ? await signInCloud(email.trim(), password)
-        : await signUpCloud(email.trim(), password);
+    let error: string | null = null;
 
-    setLoading(false);
+    try {
+      error =
+        activeTab === "login"
+          ? await signInCloud(email.trim(), password)
+          : await signUpCloud(email.trim(), password);
+    } catch {
+      error = "Falha inesperada ao autenticar. Tente novamente.";
+    } finally {
+      setLoading(false);
+    }
 
     if (error) {
       setMessage(error);

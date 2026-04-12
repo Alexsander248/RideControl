@@ -306,33 +306,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const signUpCloud = async (email: string, password: string) => {
     if (!supabase) return "Supabase não configurado.";
-    const baseUrl = getAppBaseUrl();
-    const redirectTo = baseUrl ? `${baseUrl}/auth` : undefined;
-    const { error } = await withTimeout(
-      supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          ...(redirectTo ? { emailRedirectTo: redirectTo } : {}),
-        },
-      }),
-      12000,
-    );
+    try {
+      const baseUrl = getAppBaseUrl();
+      const redirectTo = baseUrl ? `${baseUrl}/auth` : undefined;
+      const { error } = await withTimeout(
+        supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            ...(redirectTo ? { emailRedirectTo: redirectTo } : {}),
+          },
+        }),
+        18000,
+      );
 
-    return error?.message || null;
+      return error?.message || null;
+    } catch (error) {
+      return error instanceof Error
+        ? error.message
+        : "Falha ao criar conta. Tente novamente.";
+    }
   };
 
   const signInCloud = async (email: string, password: string) => {
     if (!supabase) return "Supabase não configurado.";
-    const { error } = await withTimeout(
-      supabase.auth.signInWithPassword({
-        email,
-        password,
-      }),
-      12000,
-    );
+    try {
+      const { error } = await withTimeout(
+        supabase.auth.signInWithPassword({
+          email,
+          password,
+        }),
+        18000,
+      );
 
-    return error?.message || null;
+      return error?.message || null;
+    } catch (error) {
+      return error instanceof Error
+        ? error.message
+        : "Falha ao entrar. Tente novamente.";
+    }
   };
 
   const signOutCloud = async () => {
