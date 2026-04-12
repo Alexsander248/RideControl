@@ -260,13 +260,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       return;
     }
 
-    const localUpdatedAt = Number(
-      localStorage.getItem(getUpdatedAtKey(userId)),
-    );
-    const safeLocalUpdatedAt = Number.isFinite(localUpdatedAt)
-      ? localUpdatedAt
-      : 0;
-
     if (!data) {
       await upsertCloudState(userId, localStateSnapshot);
       setCloudSyncStatus("idle");
@@ -283,23 +276,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       installYear,
     );
 
-    if (safeRemoteUpdatedAt > safeLocalUpdatedAt) {
-      isApplyingRemoteState.current = true;
-      setState(remoteState);
-      localStorage.setItem(
-        getUpdatedAtKey(userId),
-        String(safeRemoteUpdatedAt),
-      );
-      queueMicrotask(() => {
-        isApplyingRemoteState.current = false;
-      });
-      setCloudSyncStatus("idle");
-      return;
-    }
-
-    if (safeLocalUpdatedAt > safeRemoteUpdatedAt) {
-      await upsertCloudState(userId, localStateSnapshot);
-    }
+    // Em múltiplos dispositivos, o estado remoto é a fonte de verdade no login
+    // para evitar sobrescrita por snapshots locais antigos.
+    isApplyingRemoteState.current = true;
+    setState(remoteState);
+    localStorage.setItem(getUpdatedAtKey(userId), String(safeRemoteUpdatedAt));
+    queueMicrotask(() => {
+      isApplyingRemoteState.current = false;
+    });
 
     setCloudSyncStatus("idle");
   };
