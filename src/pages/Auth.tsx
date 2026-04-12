@@ -126,14 +126,14 @@ export const Auth: React.FC = () => {
             <div className="absolute -left-6 bottom-0 w-24 h-24 rounded-full bg-white/10" />
             <div className="relative z-10 flex items-center gap-2 mb-4 text-white/90 text-xs font-black uppercase tracking-[0.22em]">
               <Sparkles size={14} />
-              Login obrigatório
+              Login
             </div>
             <h2 className="text-3xl font-black leading-tight max-w-[12ch]">
               Entre para liberar o app
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-white/90 max-w-[28ch]">
-              Seus dados ficam sincronizados em nuvem e reaparecem ao trocar de
-              celular ou reinstalar o app.
+              Seus dados ficam sincronizados em nuvem e disponíveis em qualquer
+              aparelho quando você entra com sua conta.
             </p>
           </div>
 
@@ -211,7 +211,7 @@ export const Auth: React.FC = () => {
 
             <button
               type="button"
-              disabled={loading || !isCloudReady}
+              disabled={loading}
               onClick={() => void handleSubmit()}
               className="w-full h-14 rounded-2xl bg-blue-600 text-white font-black flex items-center justify-center gap-2 shadow-lg shadow-blue-200 transition-transform active:scale-[0.99] disabled:opacity-60"
             >

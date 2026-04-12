@@ -114,6 +114,24 @@ const generateId = () => {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 };
 
+const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number) => {
+  let timer: number | undefined;
+
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timer = window.setTimeout(() => {
+      reject(new Error("Tempo limite excedido ao comunicar com a nuvem."));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+    }
+  }
+};
+
 const getInstallYear = () => {
   const currentYear = new Date().getFullYear();
   const storedInstallYear = Number(localStorage.getItem(INSTALL_YEAR_KEY));
@@ -306,23 +324,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     if (!supabase) return "Supabase não configurado.";
     const baseUrl = getAppBaseUrl();
     const redirectTo = baseUrl ? `${baseUrl}/auth` : undefined;
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        ...(redirectTo ? { emailRedirectTo: redirectTo } : {}),
-      },
-    });
+    const { error } = await withTimeout(
+      supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          ...(redirectTo ? { emailRedirectTo: redirectTo } : {}),
+        },
+      }),
+      12000,
+    );
 
     return error?.message || null;
   };
 
   const signInCloud = async (email: string, password: string) => {
     if (!supabase) return "Supabase não configurado.";
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { error } = await withTimeout(
+      supabase.auth.signInWithPassword({
+        email,
+        password,
+      }),
+      12000,
+    );
 
     return error?.message || null;
   };
@@ -387,9 +411,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const bootstrap = async () => {
       try {
-        const { data } = await client.auth.getUser();
+        const { data } = await withTimeout(client.auth.getSession(), 6000);
         if (!isMounted) return;
-        await hydrateUserSession(data.user || null);
+        await hydrateUserSession(data.session?.user || null);
       } catch (error) {
         console.error("Erro ao inicializar sessão na nuvem:", error);
         if (isMounted) {
