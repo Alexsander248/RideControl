@@ -1,0 +1,261 @@
+import React, { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+
+import { motion } from "motion/react";
+import {
+  ArrowRight,
+  ShieldCheck,
+  Sparkles,
+  CircleCheck,
+  Database,
+  Lock,
+} from "lucide-react";
+
+import { useApp } from "../context/AppContext";
+
+const PASSWORD_MIN_LENGTH = 6;
+
+type AuthTab = "login" | "signup";
+
+export const Auth: React.FC = () => {
+  const {
+    isCloudReady,
+    isCloudAuthenticated,
+    isCloudConfigured,
+    cloudSyncStatus,
+    cloudSyncError,
+    signInCloud,
+    signUpCloud,
+  } = useApp();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState<AuthTab>("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const fromPath =
+    (location.state as { from?: { pathname?: string } } | undefined)?.from
+      ?.pathname || "/";
+
+  useEffect(() => {
+    if (isCloudAuthenticated && isCloudReady) {
+      navigate(fromPath, { replace: true });
+    }
+  }, [fromPath, isCloudAuthenticated, isCloudReady, navigate]);
+
+  const validateForm = () => {
+    if (!email.trim() || !password.trim()) {
+      setMessage("Informe email e senha.");
+      return false;
+    }
+
+    if (!email.includes("@")) {
+      setMessage("Informe um email válido.");
+      return false;
+    }
+
+    if (activeTab === "signup" && password.length < PASSWORD_MIN_LENGTH) {
+      setMessage("A senha deve ter pelo menos 6 caracteres.");
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
+
+    setLoading(true);
+    setMessage(null);
+
+    const error =
+      activeTab === "login"
+        ? await signInCloud(email.trim(), password)
+        : await signUpCloud(email.trim(), password);
+
+    setLoading(false);
+
+    if (error) {
+      setMessage(error);
+      return;
+    }
+
+    if (activeTab === "signup") {
+      setActiveTab("login");
+      setPassword("");
+      setMessage(
+        "Conta criada. Verifique seu email e depois volte para entrar.",
+      );
+      return;
+    }
+
+    setMessage("Login concluído. Sincronizando dados...");
+  };
+
+  return (
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.16),transparent_34%),linear-gradient(180deg,#f8fbff_0%,#eef4ff_100%)] px-6 py-8 flex items-center justify-center">
+      <motion.div
+        className="w-full max-w-md"
+        initial={{ opacity: 0, y: 16, scale: 0.985 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.35, ease: "easeOut" }}
+      >
+        <div className="mb-6 flex items-center gap-3 justify-center">
+          <div className="w-12 h-12 rounded-2xl bg-blue-500 text-white flex items-center justify-center shadow-lg shadow-blue-200">
+            <ShieldCheck size={24} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black tracking-tight text-gray-900">
+              RideControl
+            </h1>
+            <p className="text-xs font-bold uppercase tracking-[0.24em] text-gray-400">
+              Acesso seguro
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-white/95 backdrop-blur rounded-[36px] border border-white shadow-[0_24px_60px_rgba(15,23,42,0.12)] overflow-hidden">
+          <div className="px-7 pt-8 pb-6 bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500 text-white relative overflow-hidden">
+            <div className="absolute -right-8 -top-8 w-28 h-28 rounded-full bg-white/10" />
+            <div className="absolute -left-6 bottom-0 w-24 h-24 rounded-full bg-white/10" />
+            <div className="relative z-10 flex items-center gap-2 mb-4 text-white/90 text-xs font-black uppercase tracking-[0.22em]">
+              <Sparkles size={14} />
+              Login obrigatório
+            </div>
+            <h2 className="text-3xl font-black leading-tight max-w-[12ch]">
+              Entre para liberar o app
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-white/90 max-w-[28ch]">
+              Seus dados ficam sincronizados em nuvem e reaparecem ao trocar de
+              celular ou reinstalar o app.
+            </p>
+          </div>
+
+          <div className="p-6 space-y-5">
+            <div className="grid grid-cols-2 rounded-2xl bg-gray-100 p-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab("login")}
+                className={`h-11 rounded-2xl text-sm font-black transition-colors ${
+                  activeTab === "login"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-gray-500"
+                }`}
+              >
+                Entrar
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("signup")}
+                className={`h-11 rounded-2xl text-sm font-black transition-colors ${
+                  activeTab === "signup"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-gray-500"
+                }`}
+              >
+                Cadastro
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email"
+                autoComplete="email"
+                className="w-full h-14 rounded-2xl bg-gray-50 border border-gray-100 px-4 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Senha"
+                autoComplete={
+                  activeTab === "login" ? "current-password" : "new-password"
+                }
+                className="w-full h-14 rounded-2xl bg-gray-50 border border-gray-100 px-4 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+              {activeTab === "signup" && (
+                <p className="text-[11px] text-gray-400 font-medium leading-relaxed">
+                  A senha precisa ter no mínimo {PASSWORD_MIN_LENGTH}{" "}
+                  caracteres.
+                </p>
+              )}
+            </div>
+
+            <button
+              type="button"
+              disabled={loading || !isCloudReady}
+              onClick={() => void handleSubmit()}
+              className="w-full h-14 rounded-2xl bg-blue-600 text-white font-black flex items-center justify-center gap-2 shadow-lg shadow-blue-200 transition-transform active:scale-[0.99] disabled:opacity-60"
+            >
+              {loading ? (
+                "Aguarde..."
+              ) : activeTab === "login" ? (
+                <>
+                  <Lock size={18} />
+                  Entrar e sincronizar
+                </>
+              ) : (
+                <>
+                  <ArrowRight size={18} />
+                  Criar conta
+                </>
+              )}
+            </button>
+
+            <div className="grid grid-cols-1 gap-3 rounded-3xl bg-blue-50/70 p-4 border border-blue-100">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center text-blue-600 shrink-0">
+                  <Database size={16} />
+                </div>
+                <p className="text-sm font-medium text-blue-950/80 leading-relaxed">
+                  As informações são salvas localmente e também sincronizadas na
+                  nuvem quando você entra.
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center text-blue-600 shrink-0">
+                  <CircleCheck size={16} />
+                </div>
+                <p className="text-sm font-medium text-blue-950/80 leading-relaxed">
+                  Ao trocar de aparelho, basta logar na mesma conta para
+                  restaurar os dados.
+                </p>
+              </div>
+            </div>
+
+            {!isCloudConfigured && (
+              <p className="text-xs font-medium text-amber-600 bg-amber-50 border border-amber-100 rounded-2xl p-3">
+                Configure as variáveis do Supabase para ativar o login real e a
+                sincronização.
+              </p>
+            )}
+
+            {message && (
+              <p className="text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-100 rounded-2xl p-3">
+                {message}
+              </p>
+            )}
+
+            {cloudSyncError && (
+              <p className="text-xs font-semibold text-red-600 bg-red-50 border border-red-100 rounded-2xl p-3">
+                {cloudSyncError}
+              </p>
+            )}
+
+            <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-[0.2em] text-gray-400">
+              <span>
+                {cloudSyncStatus === "syncing" ? "Sincronizando" : "Pronto"}
+              </span>
+              <span>RideControl Cloud</span>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+};

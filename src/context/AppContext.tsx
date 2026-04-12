@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+} from "react";
+import type { User } from "@supabase/supabase-js";
 
 import type {
   Bike,
@@ -8,12 +15,19 @@ import type {
   UserProfile,
   NotificationSettings,
 } from "../types";
+import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
 interface AppContextType extends AppState {
   isProfileComplete: boolean;
   isTutorialActive: boolean;
   isTutorialWelcomeOpen: boolean;
   isTutorialWelcomeSkippable: boolean;
+  isCloudReady: boolean;
+  isCloudConfigured: boolean;
+  isCloudAuthenticated: boolean;
+  cloudUserEmail: string | null;
+  cloudSyncStatus: "idle" | "syncing" | "error";
+  cloudSyncError: string | null;
   addBike: (bike: Omit<Bike, "id">) => void;
   updateBike: (bike: Bike) => void;
   toggleFavoriteBike: (id: string) => void;
@@ -29,16 +43,62 @@ interface AppContextType extends AppState {
   startTutorial: (allowSkip?: boolean) => void;
   beginTutorial: () => void;
   closeTutorialWelcome: () => void;
+  signUpCloud: (email: string, password: string) => Promise<string | null>;
+  signInCloud: (email: string, password: string) => Promise<string | null>;
+  signOutCloud: () => Promise<void>;
+  syncNow: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const STORAGE_KEY = "motocontrol_data";
+const STORAGE_KEY_PREFIX = "motocontrol_data";
+const LOCAL_UPDATED_AT_PREFIX = "motocontrol_local_updated_at";
 const INSTALL_YEAR_KEY = "ridecontrol_install_year";
+const CLOUD_STATE_TABLE = "app_state";
 const DEFAULT_PROFILE_PHOTO = "/icons/perfil.png";
 const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   taskDueSoonEnabled: true,
   daysBefore: 3,
+};
+
+const getStorageKey = (userId: string | null) =>
+  `${STORAGE_KEY_PREFIX}:${userId || "guest"}`;
+
+const getUpdatedAtKey = (userId: string | null) =>
+  `${LOCAL_UPDATED_AT_PREFIX}:${userId || "guest"}`;
+
+const normalizeState = (
+  parsed: Partial<AppState> | null | undefined,
+  defaultProfile: UserProfile,
+  installYear: number,
+): AppState => {
+  const source = parsed || {};
+  const savedMemberSince = source.userProfile?.memberSince;
+  const memberSince =
+    typeof savedMemberSince === "number"
+      ? savedMemberSince === 2020
+        ? installYear
+        : savedMemberSince
+      : installYear;
+
+  return {
+    bikes: (source.bikes || []).map((bike) => ({
+      ...bike,
+      initialKm: bike.initialKm ?? bike.currentKm,
+    })),
+    expenses: source.expenses || [],
+    tasks: source.tasks || [],
+    userProfile: {
+      ...defaultProfile,
+      ...(source.userProfile || {}),
+      memberSince,
+    },
+    notificationSettings: {
+      ...DEFAULT_NOTIFICATION_SETTINGS,
+      ...(source.notificationSettings || {}),
+    },
+    tutorialViewed: Boolean(source.tutorialViewed),
+  };
 };
 
 const generateId = () => {
@@ -71,65 +131,26 @@ const getInstallYear = () => {
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [state, setState] = useState<AppState>(() => {
-    const installYear = getInstallYear();
-    const defaultProfile: UserProfile = {
-      name: "",
-      photoUrl: DEFAULT_PROFILE_PHOTO,
-      memberSince: installYear,
-    };
+  const installYear = getInstallYear();
+  const defaultProfile: UserProfile = {
+    name: "",
+    photoUrl: DEFAULT_PROFILE_PHOTO,
+    memberSince: installYear,
+  };
 
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) {
-      return {
-        bikes: [],
-        expenses: [],
-        tasks: [],
-        userProfile: defaultProfile,
-        notificationSettings: DEFAULT_NOTIFICATION_SETTINGS,
-        tutorialViewed: false,
-      };
-    }
+  const createDefaultState = (): AppState =>
+    normalizeState(null, defaultProfile, installYear);
 
-    try {
-      const parsed = JSON.parse(saved) as Partial<AppState>;
-      const savedMemberSince = parsed.userProfile?.memberSince;
-      const memberSince =
-        typeof savedMemberSince === "number"
-          ? savedMemberSince === 2020
-            ? installYear
-            : savedMemberSince
-          : installYear;
+  const [state, setState] = useState<AppState>(() => createDefaultState());
 
-      return {
-        bikes: (parsed.bikes || []).map((bike) => ({
-          ...bike,
-          initialKm: bike.initialKm ?? bike.currentKm,
-        })),
-        expenses: parsed.expenses || [],
-        tasks: parsed.tasks || [],
-        userProfile: {
-          ...defaultProfile,
-          ...(parsed.userProfile || {}),
-          memberSince,
-        },
-        notificationSettings: {
-          ...DEFAULT_NOTIFICATION_SETTINGS,
-          ...(parsed.notificationSettings || {}),
-        },
-        tutorialViewed: Boolean(parsed.tutorialViewed),
-      };
-    } catch {
-      return {
-        bikes: [],
-        expenses: [],
-        tasks: [],
-        userProfile: defaultProfile,
-        notificationSettings: DEFAULT_NOTIFICATION_SETTINGS,
-        tutorialViewed: false,
-      };
-    }
-  });
+  const [cloudUser, setCloudUser] = useState<User | null>(null);
+  const [isCloudReady, setIsCloudReady] = useState(false);
+  const [isCloudHydrating, setIsCloudHydrating] = useState(false);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<
+    "idle" | "syncing" | "error"
+  >("idle");
+  const [cloudSyncError, setCloudSyncError] = useState<string | null>(null);
+  const isApplyingRemoteState = useRef(false);
 
   const [isTutorialActive, setIsTutorialActive] = useState(false);
   const [isTutorialWelcomeOpen, setIsTutorialWelcomeOpen] = useState(false);
@@ -138,11 +159,256 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      if (cloudUser) {
+        localStorage.setItem(
+          getStorageKey(cloudUser.id),
+          JSON.stringify(state),
+        );
+        if (!isApplyingRemoteState.current) {
+          localStorage.setItem(
+            getUpdatedAtKey(cloudUser.id),
+            String(Date.now()),
+          );
+        }
+      }
     } catch (error) {
       console.error("Erro ao salvar dados no localStorage:", error);
     }
-  }, [state]);
+  }, [state, cloudUser]);
+
+  const loadLocalStateForUser = (userId: string | null) => {
+    const saved = localStorage.getItem(getStorageKey(userId));
+
+    if (!saved) {
+      return createDefaultState();
+    }
+
+    try {
+      return normalizeState(
+        JSON.parse(saved) as Partial<AppState>,
+        defaultProfile,
+        installYear,
+      );
+    } catch {
+      return createDefaultState();
+    }
+  };
+
+  const upsertCloudState = async (userId: string, appState: AppState) => {
+    if (!supabase) return;
+
+    const payload = {
+      user_id: userId,
+      data: appState,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from(CLOUD_STATE_TABLE)
+      .upsert(payload, { onConflict: "user_id" });
+
+    if (error) {
+      throw error;
+    }
+  };
+
+  const pullCloudState = async (
+    userId: string,
+    localStateSnapshot: AppState = state,
+  ) => {
+    if (!supabase) return;
+
+    setCloudSyncStatus("syncing");
+    setCloudSyncError(null);
+
+    const { data, error } = await supabase
+      .from(CLOUD_STATE_TABLE)
+      .select("data, updated_at")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error) {
+      setCloudSyncStatus("error");
+      setCloudSyncError(error.message);
+      return;
+    }
+
+    const localUpdatedAt = Number(
+      localStorage.getItem(getUpdatedAtKey(userId)),
+    );
+    const safeLocalUpdatedAt = Number.isFinite(localUpdatedAt)
+      ? localUpdatedAt
+      : 0;
+
+    if (!data) {
+      await upsertCloudState(userId, localStateSnapshot);
+      setCloudSyncStatus("idle");
+      return;
+    }
+
+    const remoteUpdatedAt = new Date(data.updated_at).getTime();
+    const safeRemoteUpdatedAt = Number.isFinite(remoteUpdatedAt)
+      ? remoteUpdatedAt
+      : 0;
+    const remoteState = normalizeState(
+      data.data as Partial<AppState>,
+      defaultProfile,
+      installYear,
+    );
+
+    if (safeRemoteUpdatedAt > safeLocalUpdatedAt) {
+      isApplyingRemoteState.current = true;
+      setState(remoteState);
+      localStorage.setItem(
+        getUpdatedAtKey(userId),
+        String(safeRemoteUpdatedAt),
+      );
+      queueMicrotask(() => {
+        isApplyingRemoteState.current = false;
+      });
+      setCloudSyncStatus("idle");
+      return;
+    }
+
+    if (safeLocalUpdatedAt > safeRemoteUpdatedAt) {
+      await upsertCloudState(userId, localStateSnapshot);
+    }
+
+    setCloudSyncStatus("idle");
+  };
+
+  const syncNow = async () => {
+    if (!supabase || !cloudUser) return;
+
+    try {
+      setCloudSyncStatus("syncing");
+      setCloudSyncError(null);
+      await upsertCloudState(cloudUser.id, state);
+      setCloudSyncStatus("idle");
+    } catch (error) {
+      setCloudSyncStatus("error");
+      setCloudSyncError(
+        error instanceof Error ? error.message : "Falha ao sincronizar",
+      );
+    }
+  };
+
+  const signUpCloud = async (email: string, password: string) => {
+    if (!supabase) return "Supabase não configurado.";
+    const redirectTo = `${window.location.origin}/auth`;
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: redirectTo,
+      },
+    });
+
+    return error?.message || null;
+  };
+
+  const signInCloud = async (email: string, password: string) => {
+    if (!supabase) return "Supabase não configurado.";
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    return error?.message || null;
+  };
+
+  const signOutCloud = async () => {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setCloudUser(null);
+    setState(createDefaultState());
+    setCloudSyncStatus("idle");
+    setCloudSyncError(null);
+  };
+
+  useEffect(() => {
+    if (!supabase) return;
+    const client = supabase;
+
+    let isMounted = true;
+
+    const hydrateUserSession = async (nextUser: User | null) => {
+      if (!isMounted) return;
+
+      if (!nextUser) {
+        setCloudUser(null);
+        setIsCloudHydrating(false);
+        setState(createDefaultState());
+        setIsCloudReady(true);
+        return;
+      }
+
+      setCloudUser(nextUser);
+      setIsCloudReady(false);
+      setIsCloudHydrating(true);
+
+      const localState = loadLocalStateForUser(nextUser.id);
+      setState(localState);
+
+      try {
+        await pullCloudState(nextUser.id, localState);
+      } finally {
+        if (isMounted) {
+          setIsCloudHydrating(false);
+          setIsCloudReady(true);
+        }
+      }
+    };
+
+    const bootstrap = async () => {
+      const { data } = await client.auth.getUser();
+      if (!isMounted) return;
+      await hydrateUserSession(data.user || null);
+    };
+
+    bootstrap();
+
+    const {
+      data: { subscription },
+    } = client.auth.onAuthStateChange(async (_event, session) => {
+      await hydrateUserSession(session?.user || null);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (
+      !supabase ||
+      !cloudUser ||
+      !isCloudReady ||
+      isCloudHydrating ||
+      isApplyingRemoteState.current
+    ) {
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      try {
+        setCloudSyncStatus("syncing");
+        setCloudSyncError(null);
+        await upsertCloudState(cloudUser.id, state);
+        setCloudSyncStatus("idle");
+      } catch (error) {
+        setCloudSyncStatus("error");
+        setCloudSyncError(
+          error instanceof Error ? error.message : "Falha ao sincronizar",
+        );
+      }
+    }, 800);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [state, cloudUser]);
 
   const addBike = (bikeData: Omit<Bike, "id">) => {
     const newBike: Bike = {
@@ -343,6 +609,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         isTutorialActive,
         isTutorialWelcomeOpen,
         isTutorialWelcomeSkippable,
+        isCloudReady,
+        isCloudConfigured: isSupabaseConfigured,
+        isCloudAuthenticated: Boolean(cloudUser),
+        cloudUserEmail: cloudUser?.email ?? null,
+        cloudSyncStatus,
+        cloudSyncError,
         addBike,
         updateBike,
         toggleFavoriteBike,
@@ -358,6 +630,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         startTutorial,
         beginTutorial,
         closeTutorialWelcome,
+        signUpCloud,
+        signInCloud,
+        signOutCloud,
+        syncNow,
       }}
     >
       {children}

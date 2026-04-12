@@ -80,6 +80,62 @@ Os dados ficam salvos localmente no navegador via `localStorage`.
 
 O app tem alternância de tema claro e escuro. O estado é salvo localmente e reaplicado ao abrir o app.
 
+## Sincronização em nuvem (definitivo)
+
+O app agora suporta autenticação e backup em nuvem via Supabase.
+
+### 1) Configure variáveis de ambiente
+
+No `.env`:
+
+```bash
+VITE_SUPABASE_URL="https://SEU-PROJETO.supabase.co"
+VITE_SUPABASE_ANON_KEY="SUA_CHAVE_ANON"
+```
+
+### 2) Crie a tabela de estado no Supabase (SQL Editor)
+
+```sql
+create table if not exists public.app_state (
+	user_id uuid primary key references auth.users(id) on delete cascade,
+	data jsonb not null,
+	updated_at timestamptz not null default now()
+);
+
+alter table public.app_state enable row level security;
+
+create policy "select own state"
+on public.app_state for select
+using (auth.uid() = user_id);
+
+create policy "insert own state"
+on public.app_state for insert
+with check (auth.uid() = user_id);
+
+create policy "update own state"
+on public.app_state for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+```
+
+Se você rodar apenas o bloco de RLS/políticas sem criar a tabela antes,
+o Supabase retorna `relation "public.app_state" does not exist`.
+Por isso, execute o bloco inteiro acima exatamente nessa ordem.
+
+### 3) Uso no app
+
+- Tela Perfil: criar conta/entrar com email e senha
+- Após login, o app sincroniza automaticamente
+- Botão "Sincronizar agora" força upload imediato
+- Ao trocar de celular, basta fazer login na mesma conta
+- O email de confirmação é enviado com redirect para `/auth` do próprio app
+
+### 4) Configuração obrigatória no Supabase
+
+- Em Authentication > URL Configuration, defina a Site URL da sua implantação
+- Em produção, adicione também a URL final do app em Additional Redirect URLs
+- Não use `localhost` como URL principal se o app for aberto em web pública ou APK
+
 ## Como rodar
 
 ### Requisitos

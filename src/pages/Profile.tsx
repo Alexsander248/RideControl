@@ -19,10 +19,27 @@ type MenuItem = {
 };
 
 export const Profile: React.FC = () => {
-  const { bikes, userProfile, startTutorial } = useApp();
+  const {
+    bikes,
+    userProfile,
+    startTutorial,
+    isCloudConfigured,
+    isCloudAuthenticated,
+    cloudUserEmail,
+    cloudSyncStatus,
+    cloudSyncError,
+    signInCloud,
+    signUpCloud,
+    signOutCloud,
+    syncNow,
+  } = useApp();
   const navigate = useNavigate();
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isPhotoViewerOpen, setIsPhotoViewerOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
   const profilePhoto = userProfile.photoUrl || DEFAULT_PROFILE_PHOTO;
 
   useEffect(() => {
@@ -58,6 +75,39 @@ export const Profile: React.FC = () => {
       console.error("Erro ao excluir conta:", error);
       alert("Erro ao excluir sua conta. Tente novamente.");
     }
+  };
+
+  const handleSignIn = async () => {
+    if (!email.trim() || !password.trim()) {
+      setAuthMessage("Informe email e senha.");
+      return;
+    }
+
+    setAuthLoading(true);
+    const error = await signInCloud(email.trim(), password);
+    setAuthLoading(false);
+    setAuthMessage(error ? `Erro ao entrar: ${error}` : "Login realizado.");
+  };
+
+  const handleSignUp = async () => {
+    if (!email.trim() || !password.trim()) {
+      setAuthMessage("Informe email e senha.");
+      return;
+    }
+
+    setAuthLoading(true);
+    const error = await signUpCloud(email.trim(), password);
+    setAuthLoading(false);
+    setAuthMessage(
+      error
+        ? `Erro ao criar conta: ${error}`
+        : "Conta criada. Confira seu email para confirmar, se solicitado.",
+    );
+  };
+
+  const handleSignOut = async () => {
+    await signOutCloud();
+    setAuthMessage("Conta desconectada.");
   };
 
   const menuItems: MenuItem[] = [
@@ -106,6 +156,91 @@ export const Profile: React.FC = () => {
       </header>
 
       <div className="space-y-4">
+        <div className="bg-white p-5 rounded-[28px] shadow-sm border border-gray-50">
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-2">
+            Nuvem
+          </p>
+
+          {!isCloudConfigured ? (
+            <p className="text-sm text-gray-500 font-medium">
+              Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY para ativar
+              backup e sincronização entre dispositivos.
+            </p>
+          ) : isCloudAuthenticated ? (
+            <div className="space-y-3">
+              <p className="text-sm font-bold text-gray-700">
+                Conectado como {cloudUserEmail}
+              </p>
+              <p className="text-xs text-gray-500 font-medium">
+                Status:{" "}
+                {cloudSyncStatus === "syncing" ? "Sincronizando" : "Pronto"}
+              </p>
+              {cloudSyncError && (
+                <p className="text-xs text-red-500 font-medium">
+                  {cloudSyncError}
+                </p>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => void syncNow()}
+                  className="px-4 py-3 rounded-2xl bg-blue-500 text-white font-bold text-sm"
+                >
+                  Sincronizar agora
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSignOut()}
+                  className="px-4 py-3 rounded-2xl bg-gray-100 text-gray-700 font-bold text-sm"
+                >
+                  Sair
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email"
+                className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm font-medium border border-gray-100"
+              />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Senha"
+                className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm font-medium border border-gray-100"
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  disabled={authLoading}
+                  onClick={() => void handleSignIn()}
+                  className="px-4 py-3 rounded-2xl bg-blue-500 text-white font-bold text-sm disabled:opacity-60"
+                >
+                  Entrar
+                </button>
+                <button
+                  type="button"
+                  disabled={authLoading}
+                  onClick={() => void handleSignUp()}
+                  className="px-4 py-3 rounded-2xl bg-gray-100 text-gray-700 font-bold text-sm disabled:opacity-60"
+                >
+                  Criar conta
+                </button>
+              </div>
+            </div>
+          )}
+
+          {authMessage && (
+            <p className="text-xs text-gray-500 font-medium mt-3">
+              {authMessage}
+            </p>
+          )}
+        </div>
+
         {menuItems.map((item, index) => (
           <button
             key={index}
