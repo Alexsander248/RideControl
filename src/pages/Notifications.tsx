@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Bell, Calendar } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import { parseLocalDate } from "../lib/date";
 import { cn } from "../lib/utils";
 
 const DAY_OPTIONS = [1, 3, 7] as const;
@@ -21,14 +22,14 @@ export const Notifications: React.FC = () => {
     return tasks
       .filter((task) => !task.completed && task.dueDate)
       .filter((task) => {
-        const due = new Date(task.dueDate as string);
+        const due = parseLocalDate(task.dueDate as string);
         due.setHours(0, 0, 0, 0);
         return due >= today && due <= limit;
       })
       .sort(
         (a, b) =>
-          new Date(a.dueDate as string).getTime() -
-          new Date(b.dueDate as string).getTime(),
+          parseLocalDate(a.dueDate as string).getTime() -
+          parseLocalDate(b.dueDate as string).getTime(),
       );
   }, [tasks, notificationSettings.daysBefore]);
 

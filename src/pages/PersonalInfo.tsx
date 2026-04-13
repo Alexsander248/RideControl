@@ -11,14 +11,13 @@ const DEFAULT_PROFILE_PHOTO = "/icons/perfil.png";
 
 export const PersonalInfo: React.FC = () => {
   const navigate = useNavigate();
-  const { userProfile, updateUserProfile, isProfileComplete } = useApp();
+  const { userProfile, updateUserProfile } = useApp();
 
   const [name, setName] = useState(userProfile.name);
   const [photoUrl, setPhotoUrl] = useState(userProfile.photoUrl);
-  const [isCompletingProfile, setIsCompletingProfile] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const trimmedName = name.trim();
   const isNameValid = trimmedName.length > 0;
-  const requiresMandatorySetup = !isProfileComplete;
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -47,26 +46,17 @@ export const PersonalInfo: React.FC = () => {
       photoUrl: safePhotoUrl,
     });
 
-    if (!requiresMandatorySetup) {
-      navigate("/perfil", { replace: true });
-      return;
-    }
-
-    setIsCompletingProfile(true);
+    setIsSaving(true);
 
     window.setTimeout(() => {
-      sessionStorage.setItem("fromProfileComplete", "true");
-      navigate("/", {
-        replace: true,
-        state: { fromProfileComplete: true },
-      });
-    }, 1250);
+      navigate("/perfil", { replace: true });
+    }, 600);
   };
 
   return (
     <>
       <AnimatePresence>
-        {isCompletingProfile && (
+        {isSaving && (
           <motion.div
             className="fixed inset-0 z-[120] overflow-hidden bg-gradient-to-br from-blue-700 via-blue-500 to-sky-400 flex items-center justify-center px-6"
             initial={{ opacity: 0 }}
@@ -130,7 +120,7 @@ export const PersonalInfo: React.FC = () => {
                 transition={{ duration: 0.35, delay: 0.15 }}
               >
                 <Sparkles size={14} />
-                Perfil concluído
+                Salvo com sucesso
               </motion.div>
 
               <motion.div
@@ -154,14 +144,10 @@ export const PersonalInfo: React.FC = () => {
       <div className="p-6 pb-24">
         <header className="flex items-center gap-4 mb-8">
           <button
-            onClick={() => {
-              if (!requiresMandatorySetup) {
-                navigate(-1);
-              }
-            }}
-            disabled={requiresMandatorySetup || isCompletingProfile}
+            onClick={() => navigate(-1)}
+            disabled={isSaving}
             className={`p-3 border rounded-2xl shadow-sm transition-transform ${
-              requiresMandatorySetup || isCompletingProfile
+              isSaving
                 ? "bg-gray-100 border-gray-100 text-gray-300 cursor-not-allowed"
                 : "bg-white border-gray-100 text-gray-900 active:scale-95"
             }`}
@@ -170,12 +156,6 @@ export const PersonalInfo: React.FC = () => {
           </button>
           <h1 className="text-2xl font-bold">Informações pessoais</h1>
         </header>
-
-        {requiresMandatorySetup && (
-          <p className="mb-6 rounded-2xl bg-amber-50 border border-amber-100 text-amber-700 px-4 py-3 text-sm font-semibold">
-            Complete o cadastro para liberar a navegação.
-          </p>
-        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="bg-white rounded-[32px] p-8 shadow-sm border border-gray-50 space-y-6">
@@ -221,7 +201,7 @@ export const PersonalInfo: React.FC = () => {
                     accept="image/*"
                     className="absolute inset-0 opacity-0 cursor-pointer"
                     onChange={handlePhotoUpload}
-                    disabled={isCompletingProfile}
+                    disabled={isSaving}
                   />
                 </div>
               </label>
@@ -237,7 +217,7 @@ export const PersonalInfo: React.FC = () => {
                 className="w-full bg-gray-50 border border-gray-300 rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                disabled={isCompletingProfile}
+                disabled={isSaving}
               />
               {!isNameValid && (
                 <p className="mt-2 text-xs font-semibold text-red-500 ml-1">
@@ -249,14 +229,14 @@ export const PersonalInfo: React.FC = () => {
 
           <button
             type="submit"
-            disabled={!isNameValid || isCompletingProfile}
+            disabled={!isNameValid || isSaving}
             className={`w-full py-5 rounded-[24px] font-bold text-lg flex items-center justify-center gap-3 transition-transform ${
-              isNameValid && !isCompletingProfile
+              isNameValid && !isSaving
                 ? "bg-blue-500 text-white shadow-xl shadow-blue-200 active:scale-95"
                 : "bg-gray-200 text-gray-400 cursor-not-allowed"
             }`}
           >
-            {isCompletingProfile ? (
+            {isSaving ? (
               <motion.span
                 className="inline-flex items-center gap-3"
                 initial={{ opacity: 0.5 }}
@@ -276,7 +256,7 @@ export const PersonalInfo: React.FC = () => {
                     ease: "linear",
                   }}
                 />
-                Preparando seu painel
+                Salvando
               </motion.span>
             ) : (
               <>

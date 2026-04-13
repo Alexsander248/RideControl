@@ -389,12 +389,7 @@ export const EditBike: React.FC = () => {
                   min="0"
                   placeholder="0"
                   className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
-                  value={currentKmInput === "0" ? "" : currentKmInput}
-                  onFocus={() => {
-                    if (currentKmInput === "0") {
-                      setCurrentKmInput("");
-                    }
-                  }}
+                  value={currentKmInput}
                   onChange={(e) => {
                     const normalized = e.target.value.replace(/^0+(?=\d)/, "");
                     setCurrentKmInput(normalized);

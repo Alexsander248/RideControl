@@ -9,7 +9,7 @@ RideControl é um app web/PWA para controle de motos. Ele foi pensado para uso n
 - Permite registrar litros abastecidos quando o gasto é de combustível.
 - Cria e acompanha tarefas de manutenção.
 - Mostra resumo da garagem, atividade recente e métricas de diagnóstico.
-- Suporta modo PWA com splash screen, instalação no celular e cache offline básico.
+- Suporta modo PWA, instalação no celular e cache offline básico.
 
 ## Principais telas
 
@@ -51,7 +51,6 @@ RideControl funciona como PWA:
 
 - Pode ser instalado no celular.
 - Abre em modo standalone, sem barra do navegador.
-- Usa splash screen própria ao iniciar.
 - Conta com service worker para cache de arquivos principais.
 - Foi ajustado para melhorar o fluxo de abertura em dispositivos móveis.
 
@@ -65,7 +64,6 @@ RideControl funciona como PWA:
 - `src/lib/`: utilitários auxiliares.
 - `public/manifest.json`: configuração da PWA.
 - `public/sw.js`: service worker.
-- `splash.html`, `splash.css`, `splash.js`: splash screen de carregamento.
 
 ## Fluxo dos dados
 
@@ -136,6 +134,24 @@ Por isso, execute o bloco inteiro acima exatamente nessa ordem.
 - O email de confirmação é enviado com redirect para `${APP_URL}/auth`
 - Se estiver testando localmente, o redirect usa `localhost`; para produção,
   use a URL pública da Vercel
+
+### 4) Conta de dev local
+
+Para testes rápidos no ambiente de desenvolvimento, a tela de login mostra o
+botão "Entrar como dev". Essa conta:
+
+- entra sem email e senha
+- exige a senha padrão `alex@232499`
+- salva os dados localmente no navegador
+- não faz sincronização com o Supabase
+- serve para testar o app inteiro sem depender de backend
+
+Se quiser personalizar o rótulo da conta, defina estas variáveis no `.env`:
+
+```bash
+VITE_DEV_ACCOUNT_EMAIL="dev@ridecontrol.local"
+VITE_DEV_ACCOUNT_NAME="Conta de dev"
+```
 
 ### 4) Configuração obrigatória no Supabase
 

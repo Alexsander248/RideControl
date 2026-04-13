@@ -28,6 +28,12 @@ export const AddTask: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.bikeId) return;
+
+    const title = formData.title.trim();
+    if (!title || formData.targetKm <= 0) {
+      return;
+    }
+
     addTask(formData as any);
     navigate(`/moto/${formData.bikeId}`);
   };
@@ -70,9 +76,17 @@ export const AddTask: React.FC = () => {
               required
               className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
               value={formData.bikeId}
-              onChange={(e) =>
-                setFormData({ ...formData, bikeId: e.target.value })
-              }
+              onChange={(e) => {
+                const bikeId = e.target.value;
+                const bikeCurrentKm =
+                  bikes.find((bike) => bike.id === bikeId)?.currentKm || 0;
+
+                setFormData({
+                  ...formData,
+                  bikeId,
+                  targetKm: Math.max(formData.targetKm, bikeCurrentKm + 5000),
+                });
+              }}
             >
               <option value="">Selecione uma moto</option>
               {bikes.map((b) => (
@@ -133,8 +147,8 @@ export const AddTask: React.FC = () => {
                       ? p === "ALTA"
                         ? "bg-red-500 text-white shadow-lg shadow-red-200"
                         : p === "MEDIA"
-                          ? "bg-orange-500 text-white shadow-lg shadow-orange-200"
-                          : "bg-blue-500 text-white shadow-lg shadow-blue-200"
+                        ? "bg-orange-500 text-white shadow-lg shadow-orange-200"
+                        : "bg-blue-500 text-white shadow-lg shadow-blue-200"
                       : "bg-gray-50 text-gray-400",
                   )}
                 >

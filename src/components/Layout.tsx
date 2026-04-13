@@ -1,17 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { BottomNav } from "./BottomNav";
 import { QuickActionModal } from "./QuickActionModal";
-import { useApp } from "../context/AppContext";
 
 export const Layout: React.FC = () => {
   const mainRef = useRef<HTMLElement | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { isProfileComplete } = useApp();
   const location = useLocation();
-  const isOnPersonalInfoPage = location.pathname === "/perfil/informacoes";
   const isOnAddExpensePage = location.pathname === "/adicionar-gasto";
-  const requiresOnboarding = !isProfileComplete;
+  const requiresOnboarding = false;
 
   useEffect(() => {
     // Garante que toda navegação abra no topo, inclusive ao voltar de rota.
@@ -23,10 +20,6 @@ export const Layout: React.FC = () => {
       mainRef.current.scrollTop = 0;
     }
   }, [location.pathname, location.search]);
-
-  if (requiresOnboarding && !isOnPersonalInfoPage) {
-    return <Navigate to="/perfil/informacoes" replace />;
-  }
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24 font-sans text-gray-900">

@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Save, Trash2 } from "lucide-react";
 
 import { useApp } from "../context/AppContext";
+import { getTodayLocalIsoDate, parseLocalDate } from "../lib/date";
 import type { ExpenseCategory } from "../types";
 
 type EditFormData = {
@@ -13,6 +14,7 @@ type EditFormData = {
   amount: number;
   km: number;
   liters: number;
+  fullTank: boolean;
   notes: string;
 };
 
@@ -45,16 +47,18 @@ export const ExpenseActivityDetails: React.FC = () => {
         amount: expense.amount,
         km: expense.km,
         liters: expense.liters || 0,
+        fullTank: expense.fullTank ?? false,
         notes: expense.notes || "",
       };
     }
     return {
       bikeId: "",
       type: "Combustivel",
-      date: new Date().toISOString().split("T")[0],
+      date: getTodayLocalIsoDate(),
       amount: 0,
       km: 0,
       liters: 0,
+      fullTank: false,
       notes: "",
     };
   });
@@ -71,6 +75,7 @@ export const ExpenseActivityDetails: React.FC = () => {
       amount: expense.amount,
       km: expense.km,
       liters: expense.liters || 0,
+      fullTank: expense.fullTank ?? false,
       notes: expense.notes || "",
     });
     setError("");
@@ -102,8 +107,8 @@ export const ExpenseActivityDetails: React.FC = () => {
     e.preventDefault();
     setError("");
 
-    if (!formData.bikeId || formData.amount <= 0 || formData.km <= 0) {
-      setError("Preencha motocicleta, valor e KM corretamente.");
+    if (!formData.bikeId || formData.amount < 0 || formData.km < 0) {
+      setError("Preencha motocicleta, valor e KM com valores válidos.");
       return;
     }
 
@@ -121,6 +126,8 @@ export const ExpenseActivityDetails: React.FC = () => {
         amount: formData.amount,
         km: formData.km,
         liters: formData.type === "Combustivel" ? formData.liters : undefined,
+        fullTank:
+          formData.type === "Combustivel" ? formData.fullTank : undefined,
         notes: formData.notes.trim() || undefined,
       });
       navigate(-1);
@@ -239,7 +246,7 @@ export const ExpenseActivityDetails: React.FC = () => {
                 />
               ) : (
                 <div className="bg-gray-50 rounded-2xl px-5 py-4 font-bold">
-                  {new Date(expense.date).toLocaleDateString("pt-BR")}
+                  {parseLocalDate(expense.date).toLocaleDateString("pt-BR")}
                 </div>
               )}
             </div>
@@ -252,12 +259,11 @@ export const ExpenseActivityDetails: React.FC = () => {
               </p>
               {isEditing ? (
                 <input
-                  required
                   type="number"
                   min="0"
                   step="0.01"
                   className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold"
-                  value={formData.amount === 0 ? "" : formData.amount}
+                  value={formData.amount}
                   onChange={(e) => {
                     const value = Number(e.target.value);
                     // Limita a 10 milhões
@@ -290,12 +296,12 @@ export const ExpenseActivityDetails: React.FC = () => {
                   type="number"
                   min="0"
                   className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold"
-                  value={formData.km === 0 ? "" : formData.km}
+                  value={formData.km}
                   onChange={(e) => {
                     const value = Number(e.target.value);
                     setFormData((prev) => ({
                       ...prev,
-                      km: Number.isFinite(value) ? value : 0,
+                      km: Number.isFinite(value) ? Math.max(0, value) : 0,
                     }));
                   }}
                 />
@@ -335,6 +341,38 @@ export const ExpenseActivityDetails: React.FC = () => {
                       maximumFractionDigits: 2,
                     })}{" "}
                     L
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
+                  Tanque cheio
+                </p>
+                {isEditing ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        fullTank: !prev.fullTank,
+                      }))
+                    }
+                    className={`w-full rounded-2xl border px-5 py-4 text-left font-bold transition-colors ${
+                      formData.fullTank
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                        : "border-gray-200 bg-gray-50 text-gray-600"
+                    }`}
+                  >
+                    {formData.fullTank
+                      ? "Sim, completei o tanque"
+                      : "Nao, abastecimento parcial"}
+                  </button>
+                ) : (
+                  <div className="bg-gray-50 rounded-2xl px-5 py-4 font-bold">
+                    {expense.fullTank
+                      ? "Sim, completei o tanque"
+                      : "Nao, abastecimento parcial"}
                   </div>
                 )}
               </div>
@@ -387,6 +425,7 @@ export const ExpenseActivityDetails: React.FC = () => {
                       amount: expense.amount,
                       km: expense.km,
                       liters: expense.liters || 0,
+                      fullTank: expense.fullTank ?? false,
                       notes: expense.notes || "",
                     });
                   }

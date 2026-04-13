@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { useApp } from "../context/AppContext";
+import { parseLocalDate } from "../lib/date";
 import { cn } from "../lib/utils";
 
 export const BikeTasks: React.FC = () => {
@@ -43,8 +44,8 @@ export const BikeTasks: React.FC = () => {
         .filter((task) => task.completed)
         .sort(
           (a, b) =>
-            new Date(b.completedDate || b.dueDate || 0).getTime() -
-            new Date(a.completedDate || a.dueDate || 0).getTime(),
+            parseLocalDate(b.completedDate || b.dueDate || 0).getTime() -
+            parseLocalDate(a.completedDate || a.dueDate || 0).getTime(),
         ),
     [bikeTasks],
   );
@@ -145,7 +146,7 @@ export const BikeTasks: React.FC = () => {
                           <Calendar size={12} />
                           <span>
                             {format(
-                              new Date(task.completedDate),
+                              parseLocalDate(task.completedDate),
                               "dd/MM/yyyy",
                               {
                                 locale: ptBR,
@@ -202,7 +203,7 @@ export const BikeTasks: React.FC = () => {
                       <div className="flex items-center gap-1 text-xs text-gray-500 font-medium">
                         <Calendar size={12} />
                         <span>
-                          {format(new Date(task.dueDate), "dd/MM/yyyy", {
+                          {format(parseLocalDate(task.dueDate), "dd/MM/yyyy", {
                             locale: ptBR,
                           })}
                         </span>

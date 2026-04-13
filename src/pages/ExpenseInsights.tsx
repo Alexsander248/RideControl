@@ -38,6 +38,8 @@ import {
 } from "lucide-react";
 
 import { useApp } from "../context/AppContext";
+import { parseLocalDate } from "../lib/date";
+import { calculateFuelConsumptionCycles } from "../lib/fuelConsumption";
 import { cn, formatCompactCurrency } from "../lib/utils";
 import type { Expense } from "../types";
 
@@ -109,18 +111,18 @@ export const ExpenseInsights: React.FC = () => {
     }
 
     const interval = {
-      start: new Date(periodStart),
-      end: new Date(periodEnd),
+      start: parseLocalDate(periodStart),
+      end: parseLocalDate(periodEnd),
     };
 
     return filtered.filter((expense) =>
-      isWithinInterval(new Date(expense.date), interval),
+      isWithinInterval(parseLocalDate(expense.date), interval),
     );
   }, [sourceExpenses, selectedBikeId, periodStart, periodEnd]);
 
   const periodButtonLabel = useMemo(() => {
-    const start = new Date(periodStart);
-    const end = new Date(periodEnd);
+    const start = parseLocalDate(periodStart);
+    const end = parseLocalDate(periodEnd);
     const isMonthlyDefault =
       periodStart === format(startOfMonth(currentDate), "yyyy-MM-dd") &&
       periodEnd === format(endOfMonth(currentDate), "yyyy-MM-dd");
@@ -143,8 +145,8 @@ export const ExpenseInsights: React.FC = () => {
   };
 
   const applyPeriodRange = () => {
-    const start = new Date(draftPeriodStart);
-    const end = new Date(draftPeriodEnd);
+    const start = parseLocalDate(draftPeriodStart);
+    const end = parseLocalDate(draftPeriodEnd);
 
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       return;
@@ -184,8 +186,8 @@ export const ExpenseInsights: React.FC = () => {
   }, [filteredExpenses]);
 
   const monthlyData = useMemo(() => {
-    const start = startOfMonth(new Date(periodStart));
-    const end = startOfMonth(new Date(periodEnd));
+    const start = startOfMonth(parseLocalDate(periodStart));
+    const end = startOfMonth(parseLocalDate(periodEnd));
 
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       return [];
@@ -210,7 +212,7 @@ export const ExpenseInsights: React.FC = () => {
     }
 
     filteredExpenses.forEach((expense) => {
-      const monthKey = format(new Date(expense.date), "yyyy-MM");
+      const monthKey = format(parseLocalDate(expense.date), "yyyy-MM");
       if (totalsByMonth.has(monthKey)) {
         totalsByMonth.set(
           monthKey,
@@ -305,36 +307,25 @@ export const ExpenseInsights: React.FC = () => {
 
     let totalDistance = 0;
     let totalLiters = 0;
-    let fuelStopsCount = 0;
+    let validFullTankCyclesCount = 0;
 
-    byBike.forEach((bikeExpenses) => {
-      const orderedExpenses = [...bikeExpenses].sort((a, b) => {
-        const dateDiff =
-          new Date(a.date).getTime() - new Date(b.date).getTime();
-        if (dateDiff !== 0) {
-          return dateDiff;
-        }
-
-        return a.km - b.km;
+    byBike.forEach((bikeExpenses, bikeId) => {
+      const cycles = calculateFuelConsumptionCycles(bikeExpenses, {
+        bikeId,
+        sortBy: "date",
       });
 
-      let previousKm: number | null = null;
-
-      orderedExpenses.forEach((expense) => {
-        if (previousKm !== null) {
-          totalDistance += Math.max(0, expense.km - previousKm);
-          totalLiters += expense.liters || 0;
-          fuelStopsCount += 1;
-        }
-
-        previousKm = expense.km;
+      cycles.forEach((cycle) => {
+        totalDistance += Math.max(0, cycle.kmFinal - cycle.kmInicial);
+        totalLiters += cycle.litrosTotal;
+        validFullTankCyclesCount += 1;
       });
     });
 
     return {
       fuelDistanceKm: totalDistance,
       totalFuelLiters: totalLiters,
-      fuelStopsCount,
+      validFullTankCyclesCount,
     };
   }, [fuelExpenses]);
 
@@ -342,7 +333,8 @@ export const ExpenseInsights: React.FC = () => {
     if (fuelExpenses.length === 0) return null;
 
     return [...fuelExpenses].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+      (a, b) =>
+        parseLocalDate(b.date).getTime() - parseLocalDate(a.date).getTime(),
     )[0];
   }, [fuelExpenses]);
 
@@ -356,13 +348,27 @@ export const ExpenseInsights: React.FC = () => {
     fuelConsumptionData.totalFuelLiters > 0
       ? fuelConsumptionData.fuelDistanceKm / fuelConsumptionData.totalFuelLiters
       : 0;
+  const monthsInPeriod = useMemo(() => {
+    const start = startOfMonth(parseLocalDate(periodStart));
+    const end = startOfMonth(parseLocalDate(periodEnd));
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return 1;
+    }
+
+    const startMonthIndex = start.getFullYear() * 12 + start.getMonth();
+    const endMonthIndex = end.getFullYear() * 12 + end.getMonth();
+    const diff = Math.abs(endMonthIndex - startMonthIndex) + 1;
+
+    return Math.max(1, diff);
+  }, [periodStart, periodEnd]);
   const hasEnoughCostData = totalKm > 0;
-  const fuelStopsCount = fuelConsumptionData.fuelStopsCount;
+  const validFullTankCyclesCount = fuelConsumptionData.validFullTankCyclesCount;
   const hasEnoughFuelData =
-    fuelStopsCount > 1 &&
+    validFullTankCyclesCount > 0 &&
     fuelConsumptionData.fuelDistanceKm > 0 &&
     fuelConsumptionData.totalFuelLiters > 0;
-  const avgMonthly = totalSpent / 12;
+  const avgMonthly = totalSpent / monthsInPeriod;
 
   const COLORS = {
     Combustivel: "#F97316",
@@ -391,7 +397,7 @@ export const ExpenseInsights: React.FC = () => {
     consumo: {
       title: "Consumo (KM/L)",
       description:
-        "Média de quilômetros por litro no período selecionado. É calculada entre todos os abastecimentos registrados, em sequência.",
+        "Média de quilômetros por litro no período selecionado. O cálculo usa apenas ciclos entre abastecimentos marcados como tanque cheio.",
     },
   };
 
@@ -593,7 +599,8 @@ export const ExpenseInsights: React.FC = () => {
             filteredExpenses
               .sort(
                 (a, b) =>
-                  new Date(b.date).getTime() - new Date(a.date).getTime(),
+                  parseLocalDate(b.date).getTime() -
+                  parseLocalDate(a.date).getTime(),
               )
               .map((expense) => (
                 <button
@@ -627,7 +634,7 @@ export const ExpenseInsights: React.FC = () => {
                       {categoryLabels[expense.type] || expense.type}
                     </h4>
                     <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wider">
-                      {format(new Date(expense.date), "dd/MM/yyyy", {
+                      {format(parseLocalDate(expense.date), "dd/MM/yyyy", {
                         locale: ptBR,
                       })}
                     </p>
@@ -933,18 +940,18 @@ export const ExpenseInsights: React.FC = () => {
                       Fórmula
                     </p>
                     <p className="text-sm font-semibold text-gray-800">
-                      Consumo (KM/L) = Distância entre abastecimentos / Litros
-                      abastecidos
+                      Consumo (KM/L) = Distância entre dois tanques cheios /
+                      Litros do abastecimento atual (tanque cheio)
                     </p>
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div className="rounded-2xl border border-gray-100 p-3">
                       <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
-                        Abastecimentos
+                        Ciclos válidos
                       </p>
                       <p className="text-lg font-black text-gray-900">
-                        {fuelStopsCount}
+                        {validFullTankCyclesCount}
                       </p>
                     </div>
 
@@ -1005,9 +1012,9 @@ export const ExpenseInsights: React.FC = () => {
                     ) : (
                       <p className="text-sm font-semibold text-blue-900">
                         Dados insuficientes para calcular o consumo neste
-                        período. É necessário ter litros abastecidos e uma
-                        distância positiva entre o KM inicial da moto e os
-                        abastecimentos registrados.
+                        período. É necessário ter ao menos dois abastecimentos
+                        seguidos marcados como tanque cheio, com distância e
+                        litros positivos.
                       </p>
                     )}
                   </div>

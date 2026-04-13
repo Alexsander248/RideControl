@@ -38,8 +38,20 @@ function LegacyBikeRedirect() {
 }
 
 function RequireAuth() {
-  const { isCloudAuthenticated } = useApp();
+  const { isCloudAuthenticated, isCloudReady } = useApp();
   const location = useLocation();
+
+  if (!isCloudReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-6">
+        <div className="bg-white border border-gray-100 rounded-3xl px-6 py-5 shadow-sm text-center">
+          <p className="text-sm font-semibold text-gray-700">
+            Restaurando sua sessão...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isCloudAuthenticated) {
     return <Navigate to="/auth" replace state={{ from: location }} />;

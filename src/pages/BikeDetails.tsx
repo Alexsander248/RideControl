@@ -16,6 +16,7 @@ import {
 
 import { useApp } from "../context/AppContext";
 import { ImageViewerModal } from "../components/ImageViewerModal";
+import { parseLocalDate } from "../lib/date";
 
 export const BikeDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -31,7 +32,8 @@ export const BikeDetails: React.FC = () => {
 
   const activeTasks = bikeTasks.filter((t) => !t.completed);
   const recentBikeExpenses = [...bikeExpenses].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    (a, b) =>
+      parseLocalDate(b.date).getTime() - parseLocalDate(a.date).getTime(),
   );
 
   const expenseTypeLabels: Record<string, string> = {
@@ -222,7 +224,7 @@ export const BikeDetails: React.FC = () => {
                       {expenseTypeLabels[expense.type] || expense.type}
                     </h4>
                     <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mt-1">
-                      {format(new Date(expense.date), "dd/MM/yyyy", {
+                      {format(parseLocalDate(expense.date), "dd/MM/yyyy", {
                         locale: ptBR,
                       })}
                     </p>

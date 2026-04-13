@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { useApp } from "../context/AppContext";
+import { parseLocalDate } from "../lib/date";
 import { cn, formatCompactCurrency } from "../lib/utils";
 
 const DEFAULT_PROFILE_PHOTO = "/icons/perfil.png";
@@ -86,7 +87,10 @@ export const Home: React.FC = () => {
   );
   const resolveBikeId = preferredBikeWithTask?.id || activeTasks[0]?.bikeId;
   const recentExpenses = [...displayExpenses]
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .sort(
+      (a, b) =>
+        parseLocalDate(b.date).getTime() - parseLocalDate(a.date).getTime(),
+    )
     .slice(0, 3);
 
   return (
@@ -241,7 +245,7 @@ export const Home: React.FC = () => {
                     {EXPENSE_TYPE_LABELS[expense.type] || expense.type}
                   </h4>
                   <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wider">
-                    {format(new Date(expense.date), "dd/MM/yyyy", {
+                    {format(parseLocalDate(expense.date), "dd/MM/yyyy", {
                       locale: ptBR,
                     })}{" "}
                     - {displayBikes.find((b) => b.id === expense.bikeId)?.name}

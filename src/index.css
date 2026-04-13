@@ -49,16 +49,6 @@ html.dark-mode video {
   filter: invert(1) hue-rotate(180deg);
 }
 
-/* Mantem o splash com as cores originais mesmo no modo escuro global */
-html.dark-mode .app-splash {
-  filter: invert(1) hue-rotate(180deg);
-}
-
-html.dark-mode .app-splash img,
-html.dark-mode .app-splash video {
-  filter: none;
-}
-
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 0px;

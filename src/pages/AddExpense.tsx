@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { useApp } from "../context/AppContext";
+import { getTodayLocalIsoDate } from "../lib/date";
 import { cn } from "../lib/utils";
 import type { ExpenseCategory } from "../types";
 
@@ -50,14 +51,13 @@ export const AddExpense: React.FC = () => {
   const [formData, setFormData] = useState({
     bikeId: initialBikeId,
     type: initialType,
-    date: isTutorialMode
-      ? "2026-04-09"
-      : new Date().toISOString().split("T")[0],
+    date: isTutorialMode ? "2026-04-09" : getTodayLocalIsoDate(),
     amount: isTutorialMode ? 25 : 0,
     km: isTutorialMode
       ? 100
       : bikes.find((b) => b.id === initialBikeId)?.currentKm || 0,
     liters: isTutorialMode ? 3 : 0,
+    fullTank: isTutorialMode,
     notes: isTutorialMode ? "Abastecimento tutorial" : "",
   });
   const [amountInput, setAmountInput] = useState(
@@ -102,13 +102,34 @@ export const AddExpense: React.FC = () => {
       color: "bg-blue-500",
     },
     { id: "Pecas", label: "Peças", icon: Package, color: "bg-purple-500" },
+    {
+      id: "Equipamentos",
+      label: "Equipamentos",
+      icon: Package,
+      color: "bg-violet-500",
+    },
     { id: "Outros", icon: MoreHorizontal, color: "bg-gray-500" },
   ];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.bikeId || formData.amount <= 0) {
-      alert("Preencha uma motocicleta e um valor maior que zero.");
+    if (!formData.bikeId) {
+      alert("Selecione uma motocicleta.");
+      return;
+    }
+
+    if (formData.amount < 0) {
+      alert("O valor não pode ser negativo.");
+      return;
+    }
+
+    if (formData.km < 0) {
+      alert("Informe um KM atual válido (zero ou maior).");
+      return;
+    }
+
+    if (formData.type === "Combustivel" && formData.liters <= 0) {
+      alert("Para combustível, informe litros maiores que zero.");
       return;
     }
 
@@ -117,7 +138,13 @@ export const AddExpense: React.FC = () => {
       return;
     }
 
-    addExpense(formData as any);
+    const payload = {
+      ...formData,
+      liters: formData.type === "Combustivel" ? formData.liters : undefined,
+      fullTank: formData.type === "Combustivel" ? formData.fullTank : undefined,
+    };
+
+    addExpense(payload as any);
     navigate(-1);
   };
 
@@ -230,7 +257,6 @@ export const AddExpense: React.FC = () => {
                   Valor (R$)
                 </label>
                 <input
-                  required
                   type="text"
                   inputMode="numeric"
                   placeholder="R$ 0,00"
@@ -246,14 +272,15 @@ export const AddExpense: React.FC = () => {
                 <input
                   required
                   type="number"
+                  min="0"
                   placeholder="0"
                   className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
-                  value={formData.km === 0 ? "" : formData.km}
+                  value={formData.km}
                   onChange={(e) => {
                     const nextKm = Number(e.target.value);
                     setFormData({
                       ...formData,
-                      km: Number.isNaN(nextKm) ? 0 : nextKm,
+                      km: Number.isNaN(nextKm) ? 0 : Math.max(0, nextKm),
                     });
                   }}
                 />
@@ -298,6 +325,31 @@ export const AddExpense: React.FC = () => {
                     />
                   </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      fullTank: !prev.fullTank,
+                    }))
+                  }
+                  className={cn(
+                    "w-full rounded-2xl border px-5 py-4 text-left transition-colors",
+                    formData.fullTank
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      : "border-gray-200 bg-gray-50 text-gray-600",
+                  )}
+                >
+                  <p className="text-xs font-bold uppercase tracking-wider">
+                    Tanque cheio
+                  </p>
+                  <p className="mt-1 text-sm font-semibold">
+                    {formData.fullTank
+                      ? "Sim, completei o tanque neste abastecimento"
+                      : "Nao, foi abastecimento parcial"}
+                  </p>
+                </button>
               </div>
             ) : (
               <div>

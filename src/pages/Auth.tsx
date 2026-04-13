@@ -11,12 +11,15 @@ import {
   Lock,
   MailCheck,
   AlertTriangle,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 import { useApp } from "../context/AppContext";
 
 const PASSWORD_MIN_LENGTH = 6;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const SAVED_ACCOUNTS_KEY = "ridecontrol_saved_accounts";
 
 type AuthTab = "login" | "signup";
 
@@ -63,6 +66,27 @@ const mapAuthError = (rawError: string, mode: AuthTab) => {
   return "Não foi possível concluir o login agora. Tente novamente em instantes.";
 };
 
+const getSavedAccounts = () => {
+  try {
+    const raw = localStorage.getItem(SAVED_ACCOUNTS_KEY);
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter((item, index, arr) => item && arr.indexOf(item) === index);
+  } catch {
+    return [];
+  }
+};
+
+const persistSavedAccounts = (accounts: string[]) => {
+  localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(accounts));
+};
+
 export const Auth: React.FC = () => {
   const {
     isCloudReady,
@@ -72,6 +96,7 @@ export const Auth: React.FC = () => {
     cloudSyncError,
     signInCloud,
     signUpCloud,
+    signInDev,
   } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
@@ -79,21 +104,39 @@ export const Auth: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [devPassword, setDevPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showDevPassword, setShowDevPassword] = useState(false);
+  const [savedAccounts, setSavedAccounts] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [verificationSent, setVerificationSent] = useState(false);
   const [messageType, setMessageType] = useState<"info" | "error">("info");
   const isSignUp = activeTab === "signup";
+  const isDevMode = import.meta.env.DEV;
 
   const fromPath =
     (location.state as { from?: { pathname?: string } } | undefined)?.from
       ?.pathname || "/";
+  const postLoginPath =
+    fromPath === "/auth" || fromPath === "/perfil/informacoes" ? "/" : fromPath;
+
+  useEffect(() => {
+    const accounts = getSavedAccounts();
+    setSavedAccounts(accounts);
+
+    if (!email.trim() && accounts.length > 0) {
+      setEmail(accounts[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (isCloudAuthenticated && isCloudReady) {
-      navigate(fromPath, { replace: true });
+      navigate(postLoginPath, { replace: true });
     }
-  }, [fromPath, isCloudAuthenticated, isCloudReady, navigate]);
+  }, [isCloudAuthenticated, isCloudReady, navigate, postLoginPath]);
 
   const validateForm = () => {
     if (!email.trim() || !password.trim()) {
@@ -172,6 +215,27 @@ export const Auth: React.FC = () => {
         "Conta criada. Verifique seu email para confirmar e depois entre no app.",
       );
       return;
+    }
+
+    if (EMAIL_REGEX.test(email.trim())) {
+      const normalizedEmail = email.trim().toLowerCase();
+
+      if (!savedAccounts.includes(normalizedEmail)) {
+        const shouldSave = window.confirm(
+          "Deseja salvar esta conta neste aparelho para preencher o email automaticamente nos próximos logins?",
+        );
+
+        if (shouldSave) {
+          setSavedAccounts((prev) => {
+            const next = [
+              normalizedEmail,
+              ...prev.filter((item) => item !== normalizedEmail),
+            ].slice(0, 5);
+            persistSavedAccounts(next);
+            return next;
+          });
+        }
+      }
     }
 
     setVerificationSent(false);
@@ -279,26 +343,55 @@ export const Auth: React.FC = () => {
                 autoComplete="email"
                 className="w-full h-14 rounded-2xl bg-gray-50 border border-gray-100 px-4 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20"
               />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Senha"
-                autoComplete={
-                  activeTab === "login" ? "current-password" : "new-password"
-                }
-                className="w-full h-14 rounded-2xl bg-gray-50 border border-gray-100 px-4 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
+
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Senha"
+                  autoComplete={
+                    activeTab === "login" ? "current-password" : "new-password"
+                  }
+                  className="w-full h-14 rounded-2xl bg-gray-50 border border-gray-100 px-4 pr-12 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-0 h-14 px-4 text-gray-500 hover:text-gray-700"
+                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               {isSignUp && (
                 <>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Confirmar senha"
-                    autoComplete="new-password"
-                    className="w-full h-14 rounded-2xl bg-gray-50 border border-gray-100 px-4 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirmar senha"
+                      autoComplete="new-password"
+                      className="w-full h-14 rounded-2xl bg-gray-50 border border-gray-100 px-4 pr-12 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword((prev) => !prev)}
+                      className="absolute inset-y-0 right-0 h-14 px-4 text-gray-500 hover:text-gray-700"
+                      aria-label={
+                        showConfirmPassword
+                          ? "Ocultar confirmação de senha"
+                          : "Mostrar confirmação de senha"
+                      }
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff size={18} />
+                      ) : (
+                        <Eye size={18} />
+                      )}
+                    </button>
+                  </div>
                   <p className="text-[11px] text-gray-400 font-medium leading-relaxed">
                     A senha precisa ter no mínimo {PASSWORD_MIN_LENGTH}{" "}
                     caracteres.
@@ -327,6 +420,70 @@ export const Auth: React.FC = () => {
                 </>
               )}
             </button>
+
+            {isDevMode && (
+              <div className="space-y-3 rounded-3xl border border-gray-100 bg-gray-50 p-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-400">
+                  Conta de dev
+                </p>
+                <div className="relative">
+                  <input
+                    type={showDevPassword ? "text" : "password"}
+                    value={devPassword}
+                    onChange={(e) => setDevPassword(e.target.value)}
+                    placeholder="Senha da conta de dev"
+                    autoComplete="off"
+                    className="w-full h-14 rounded-2xl bg-white border border-gray-100 px-4 pr-12 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowDevPassword((prev) => !prev)}
+                    className="absolute inset-y-0 right-0 h-14 px-4 text-gray-500 hover:text-gray-700"
+                    aria-label={
+                      showDevPassword
+                        ? "Ocultar senha dev"
+                        : "Mostrar senha dev"
+                    }
+                  >
+                    {showDevPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={async () => {
+                    setLoading(true);
+                    setMessage(null);
+
+                    try {
+                      const error = await signInDev(devPassword);
+                      if (error) {
+                        setMessageType("error");
+                        setMessage(error);
+                        return;
+                      }
+
+                      setMessageType("info");
+                      setMessage(
+                        "Conta de dev ativa. Você já pode testar o app com dados locais.",
+                      );
+                    } catch {
+                      setMessageType("error");
+                      setMessage("Não foi possível ativar a conta de dev.");
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  className="w-full h-14 rounded-2xl bg-gray-900 text-white font-black flex items-center justify-center gap-2 shadow-lg shadow-gray-200 transition-transform active:scale-[0.99] disabled:opacity-60"
+                >
+                  <ShieldCheck size={18} />
+                  Entrar como dev
+                </button>
+                <p className="text-[11px] font-medium text-gray-500 leading-relaxed">
+                  Use a senha padrão para abrir a conta de testes local.
+                </p>
+              </div>
+            )}
 
             {message &&
               (messageType === "error" ? (

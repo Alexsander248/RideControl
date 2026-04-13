@@ -49,6 +49,7 @@ interface AppContextType extends AppState {
   closeTutorialWelcome: () => void;
   signUpCloud: (email: string, password: string) => Promise<string | null>;
   signInCloud: (email: string, password: string) => Promise<string | null>;
+  signInDev: (password: string) => Promise<string | null>;
   signOutCloud: () => Promise<void>;
   syncNow: () => Promise<void>;
 }
@@ -58,7 +59,17 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 const STORAGE_KEY_PREFIX = "motocontrol_data";
 const LOCAL_UPDATED_AT_PREFIX = "motocontrol_local_updated_at";
 const INSTALL_YEAR_KEY = "ridecontrol_install_year";
+const DEV_SESSION_KEY = "ridecontrol_dev_session";
+const DEV_SESSION_ID = "dev-account";
+const DEV_SESSION_PASSWORD = "alex@232499";
+const DEV_SESSION_EMAIL =
+  (import.meta.env.VITE_DEV_ACCOUNT_EMAIL as string | undefined) ||
+  "dev@ridecontrol.local";
+const DEV_SESSION_NAME =
+  (import.meta.env.VITE_DEV_ACCOUNT_NAME as string | undefined) ||
+  "Conta de dev";
 const CLOUD_STATE_TABLE = "app_state";
+const CLOUD_REQUEST_TIMEOUT_MS = 12000;
 const DEFAULT_PROFILE_PHOTO = "/icons/perfil.png";
 const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   taskDueSoonEnabled: true,
@@ -67,11 +78,49 @@ const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
 
 type SyncCollectionKey = keyof SyncCollectionsMeta;
 
+type DevSession = {
+  id: string;
+  email: string;
+  name: string;
+};
+
 const getStorageKey = (userId: string | null) =>
   `${STORAGE_KEY_PREFIX}:${userId || "guest"}`;
 
 const getUpdatedAtKey = (userId: string | null) =>
   `${LOCAL_UPDATED_AT_PREFIX}:${userId || "guest"}`;
+
+const getDevSession = (): DevSession | null => {
+  try {
+    const raw = localStorage.getItem(DEV_SESSION_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<DevSession>;
+    if (!parsed || typeof parsed !== "object") return null;
+
+    return {
+      id: typeof parsed.id === "string" ? parsed.id : DEV_SESSION_ID,
+      email:
+        typeof parsed.email === "string" && parsed.email.trim()
+          ? parsed.email.trim()
+          : DEV_SESSION_EMAIL,
+      name:
+        typeof parsed.name === "string" && parsed.name.trim()
+          ? parsed.name.trim()
+          : DEV_SESSION_NAME,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const persistDevSession = (session: DevSession) => {
+  localStorage.setItem(DEV_SESSION_KEY, JSON.stringify(session));
+};
+
+const clearDevSession = () => {
+  localStorage.removeItem(DEV_SESSION_KEY);
+};
 
 const nowTs = () => Date.now();
 
@@ -398,6 +447,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const [state, setState] = useState<AppState>(() => createDefaultState());
 
   const [cloudUser, setCloudUser] = useState<User | null>(null);
+  const [devSession, setDevSession] = useState<DevSession | null>(null);
   const [isCloudReady, setIsCloudReady] = useState(false);
   const [isCloudHydrating, setIsCloudHydrating] = useState(false);
   const [cloudBootProgress, setCloudBootProgress] = useState(0);
@@ -415,14 +465,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
   useEffect(() => {
     try {
-      if (cloudUser) {
+      const activeUserId = cloudUser?.id ?? devSession?.id ?? null;
+
+      if (activeUserId) {
         localStorage.setItem(
-          getStorageKey(cloudUser.id),
+          getStorageKey(activeUserId),
           JSON.stringify(state),
         );
         if (!isApplyingRemoteState.current) {
           localStorage.setItem(
-            getUpdatedAtKey(cloudUser.id),
+            getUpdatedAtKey(activeUserId),
             String(Date.now()),
           );
         }
@@ -430,7 +482,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     } catch (error) {
       console.error("Erro ao salvar dados no localStorage:", error);
     }
-  }, [state, cloudUser]);
+  }, [state, cloudUser, devSession]);
 
   const setBootStep = (progress: number, status: string) => {
     setCloudBootProgress((prev) => Math.max(prev, progress));
@@ -459,6 +511,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  const activateDevSession = () => {
+    const session: DevSession = {
+      id: DEV_SESSION_ID,
+      email: DEV_SESSION_EMAIL,
+      name: DEV_SESSION_NAME,
+    };
+
+    persistDevSession(session);
+    setDevSession(session);
+    setCloudUser(null);
+    setState(loadLocalStateForUser(session.id));
+    setIsCloudReady(true);
+    setIsCloudHydrating(false);
+    setCloudSyncStatus("idle");
+    setCloudSyncError(null);
+    setCloudBootProgress(100);
+    setCloudBootStatus("Conta de dev ativa");
+  };
+
   const upsertCloudState = async (userId: string, appState: AppState) => {
     if (!supabase) return;
 
@@ -468,9 +539,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase
-      .from(CLOUD_STATE_TABLE)
-      .upsert(payload, { onConflict: "user_id" });
+    const { error } = await withTimeout(
+      Promise.resolve(
+        supabase
+          .from(CLOUD_STATE_TABLE)
+          .upsert(payload, { onConflict: "user_id" }),
+      ),
+      CLOUD_REQUEST_TIMEOUT_MS,
+    );
 
     if (error) {
       throw error;
@@ -600,11 +676,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       ? localUpdatedAt
       : nowTs();
 
-    const { data, error } = await supabase
-      .from(CLOUD_STATE_TABLE)
-      .select("data, updated_at")
-      .eq("user_id", userId)
-      .maybeSingle();
+    let data: { data: Partial<AppState>; updated_at: string } | null = null;
+    let error: { message: string } | null = null;
+
+    try {
+      const response = await withTimeout(
+        Promise.resolve(
+          supabase
+            .from(CLOUD_STATE_TABLE)
+            .select("data, updated_at")
+            .eq("user_id", userId)
+            .maybeSingle(),
+        ),
+        CLOUD_REQUEST_TIMEOUT_MS,
+      );
+
+      data = response.data as {
+        data: Partial<AppState>;
+        updated_at: string;
+      } | null;
+      error = response.error as { message: string } | null;
+    } catch (pullError) {
+      setCloudSyncStatus("error");
+      setCloudSyncError(
+        pullError instanceof Error
+          ? pullError.message
+          : "Falha ao ler dados da nuvem",
+      );
+      return;
+    }
 
     if (error) {
       setCloudSyncStatus("error");
@@ -706,6 +806,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const signInCloud = async (email: string, password: string) => {
+    if (devSession) {
+      return "A conta de dev está ativa. Saia dela antes de usar login real.";
+    }
+
     if (!supabase) return "Supabase não configurado.";
     try {
       const { error } = await withTimeout(
@@ -724,7 +828,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  const signInDev = async (password: string) => {
+    if (password !== DEV_SESSION_PASSWORD) {
+      return "Senha inválida para a conta de dev.";
+    }
+
+    activateDevSession();
+    return null;
+  };
+
   const signOutCloud = async () => {
+    if (devSession) {
+      clearDevSession();
+      setDevSession(null);
+      setCloudUser(null);
+      setState(createDefaultState());
+      setCloudSyncStatus("idle");
+      setCloudSyncError(null);
+      setCloudBootProgress(100);
+      setCloudBootStatus("Concluído");
+      return;
+    }
+
     if (!supabase) return;
     await supabase.auth.signOut();
     setCloudUser(null);
@@ -734,6 +859,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   useEffect(() => {
+    const storedDevSession = getDevSession();
+    if (storedDevSession) {
+      setDevSession(storedDevSession);
+      setCloudUser(null);
+      setState(loadLocalStateForUser(storedDevSession.id));
+      setIsCloudReady(true);
+      setIsCloudHydrating(false);
+      setCloudBootProgress(100);
+      setCloudBootStatus("Conta de dev ativa");
+      return;
+    }
+
     if (!supabase) {
       setIsCloudReady(true);
       setIsCloudHydrating(false);
@@ -751,6 +888,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       setBootStep(15, "Verificando sessão");
 
       if (!nextUser) {
+        setDevSession(null);
         setCloudUser(null);
         setIsCloudHydrating(false);
         setState(createDefaultState());
@@ -760,6 +898,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
 
+      setDevSession(null);
       setCloudUser(nextUser);
       setIsCloudReady(false);
       setIsCloudHydrating(true);
@@ -790,6 +929,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       } catch (error) {
         console.error("Erro ao inicializar sessão na nuvem:", error);
         if (isMounted) {
+          setDevSession(null);
           setCloudUser(null);
           setIsCloudHydrating(false);
           setState(createDefaultState());
@@ -804,8 +944,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const {
       data: { subscription },
-    } = client.auth.onAuthStateChange(async (_event, session) => {
-      await hydrateUserSession(session?.user || null);
+    } = client.auth.onAuthStateChange((_event, session) => {
+      void hydrateUserSession(session?.user || null);
     });
 
     return () => {
@@ -1173,6 +1313,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const isProfileComplete = state.userProfile.name.trim().length > 0;
+  const activeUserEmail = cloudUser?.email ?? devSession?.email ?? null;
+  const isAuthenticated = Boolean(cloudUser || devSession);
 
   return (
     <AppContext.Provider
@@ -1184,8 +1326,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         isTutorialWelcomeSkippable,
         isCloudReady,
         isCloudConfigured: isSupabaseConfigured,
-        isCloudAuthenticated: Boolean(cloudUser),
-        cloudUserEmail: cloudUser?.email ?? null,
+        isCloudAuthenticated: isAuthenticated,
+        cloudUserEmail: activeUserEmail,
         cloudBootProgress,
         cloudBootStatus,
         cloudSyncStatus,
@@ -1207,6 +1349,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         closeTutorialWelcome,
         signUpCloud,
         signInCloud,
+        signInDev,
         signOutCloud,
         syncNow,
       }}
