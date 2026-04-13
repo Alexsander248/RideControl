@@ -159,6 +159,53 @@ VITE_DEV_ACCOUNT_NAME="Conta de dev"
 - Em produção, adicione também a URL final do app em Additional Redirect URLs
 - Não use `localhost` como URL principal se o app for aberto em web pública ou APK
 
+## Atualização do APK
+
+O app verifica um manifesto remoto de atualização ao abrir e também quando volta
+para primeiro plano.
+
+### 1) Publique um manifesto JSON
+
+Hospede um arquivo JSON em um servidor público, por exemplo:
+
+```json
+{
+  "version": "1.0.1",
+  "apkUrl": "https://seu-servidor.com/RideControl.apk",
+  "notes": "Correções e melhorias na versão 1.0.1",
+  "force": false
+}
+```
+
+### 2) Configure a URL do manifesto
+
+No `.env` da build:
+
+```bash
+VITE_UPDATE_MANIFEST_URL="https://seu-servidor.com/app-update.json"
+```
+
+Se essa variável não existir, o app usa `/app-update.json` como fallback.
+
+### 3) Fluxo no app
+
+- Ao detectar uma versão maior que a atual, o app mostra um modal de atualização
+- O botão "Atualizar APK" baixa o APK antes de abrir a instalação
+- Se `force` for `true`, a atualização não pode ser dispensada pelo usuário
+- No Android, o usuário ainda precisa permitir "Instalar apps desconhecidos"
+- O APK novo precisa usar o mesmo `package name` e o mesmo keystore do anterior
+
+### 4) Cache de checagem
+
+- O app evita repetir a mesma checagem em sequência usando cache local
+- Se você publicar uma versão nova, a checagem volta a acontecer normalmente
+
+### 5) Versionamento do app
+
+- A versão atual do app vem de `package.json`
+- O Android usa `versionName` sincronizado com essa versão
+- Ao publicar um novo APK, incremente a versão e gere um novo manifesto
+
 ## Como rodar
 
 ### Requisitos

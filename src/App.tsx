@@ -15,6 +15,7 @@ import {
 import { motion } from "motion/react";
 import { AppProvider, useApp } from "./context/AppContext";
 import { Layout } from "./components/Layout";
+import { AppUpdateManager } from "./components/AppUpdateManager";
 import { OnboardingTutorial } from "./components/OnboardingTutorial.tsx";
 import { TutorialWelcome } from "./components/TutorialWelcome";
 import { Auth } from "./pages/Auth";
@@ -117,6 +118,7 @@ export default function App() {
   return (
     <AppProvider>
       <BrowserRouter>
+        <AppUpdateManager />
         <AppContent />
       </BrowserRouter>
     </AppProvider>

@@ -6,6 +6,7 @@ import { User, Bell, Moon, LogOut, ChevronRight, BookOpen } from "lucide-react";
 
 import { cn } from "../lib/utils";
 import { ImageViewerModal } from "../components/ImageViewerModal";
+import { currentAppVersion } from "../lib/appUpdate";
 
 const DEFAULT_PROFILE_PHOTO = "/icons/perfil.png";
 
@@ -319,7 +320,7 @@ export const Profile: React.FC = () => {
 
       <div className="mt-12 text-center">
         <p className="text-[10px] text-gray-300 font-black uppercase tracking-[0.2em]">
-          RideControl v0.0.1 <br />
+          RideControl v{currentAppVersion} <br />
           Criado por: Alexsander Alcantara
         </p>
       </div>
