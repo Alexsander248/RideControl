@@ -31,6 +31,7 @@ export const Profile: React.FC = () => {
     cloudSyncError,
     signInCloud,
     signUpCloud,
+    deleteAccount,
     signOutCloud,
     syncNow,
   } = useApp();
@@ -55,27 +56,24 @@ export const Profile: React.FC = () => {
     localStorage.setItem("ridecontrol_dark_mode", String(isDarkMode));
   }, [isDarkMode]);
 
-  const handleDeleteAccount = () => {
+  const handleDeleteAccount = async () => {
     const confirmed = window.confirm(
-      "Tem certeza que deseja excluir sua conta? Esta ação não pode ser desfeita e todos os seus dados serão apagados permanentemente.",
+      "Tem certeza que deseja excluir sua conta e todos os dados associados? Esta ação não pode ser desfeita.",
     );
 
     if (!confirmed) {
       return;
     }
 
-    try {
-      // Limpar todos os dados do localStorage
-      localStorage.removeItem("motocontrol_data");
-      localStorage.removeItem("ridecontrol_install_year");
-      localStorage.removeItem("ridecontrol_dark_mode");
+    const error = await deleteAccount();
 
-      // Recarregar a página para resetar o app
-      window.location.href = "/";
-    } catch (error) {
-      console.error("Erro ao excluir conta:", error);
-      alert("Erro ao excluir sua conta. Tente novamente.");
+    if (error) {
+      setAuthMessage(`Erro ao excluir conta: ${error}`);
+      return;
     }
+
+    setAuthMessage("Conta excluída. Seus dados foram removidos.");
+    navigate("/auth", { replace: true });
   };
 
   const handleSignIn = async () => {
@@ -306,7 +304,7 @@ export const Profile: React.FC = () => {
 
         <button
           type="button"
-          onClick={handleDeleteAccount}
+          onClick={() => void handleDeleteAccount()}
           className="w-full bg-red-50 p-5 rounded-[28px] flex items-center justify-between border border-red-100 mt-8 transition-transform active:scale-[0.98]"
         >
           <div className="flex items-center gap-4">

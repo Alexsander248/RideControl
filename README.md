@@ -141,7 +141,7 @@ Para testes rápidos no ambiente de desenvolvimento, a tela de login mostra o
 botão "Entrar como dev". Essa conta:
 
 - entra sem email e senha
-- exige a senha padrão `alex@232499`
+- usa uma senha definida apenas na build de desenvolvimento
 - salva os dados localmente no navegador
 - não faz sincronização com o Supabase
 - serve para testar o app inteiro sem depender de backend
@@ -151,6 +151,7 @@ Se quiser personalizar o rótulo da conta, defina estas variáveis no `.env`:
 ```bash
 VITE_DEV_ACCOUNT_EMAIL="dev@ridecontrol.local"
 VITE_DEV_ACCOUNT_NAME="Conta de dev"
+VITE_DEV_SESSION_PASSWORD="sua_senha_de_dev"
 ```
 
 ### 4) Configuração obrigatória no Supabase
@@ -158,11 +159,28 @@ VITE_DEV_ACCOUNT_NAME="Conta de dev"
 - Em Authentication > URL Configuration, defina a Site URL da sua implantação
 - Em produção, adicione também a URL final do app em Additional Redirect URLs
 - Não use `localhost` como URL principal se o app for aberto em web pública ou APK
+- Para o app Android abrir de volta na instalação, adicione também
+  `com.ridecontrol.app://auth/callback` em Additional Redirect URLs
+
+### 5) Exclusão de conta no servidor
+
+Para cumprir a exigência da Play Store, publique o endpoint `/api/delete-account`
+na mesma implantação do app e configure estas variáveis no servidor:
+
+```bash
+SUPABASE_URL="https://SEU-PROJETO.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="SUA_CHAVE_SERVICE_ROLE"
+```
+
+O app envia o `userId` e o token autenticado. O endpoint valida a sessão,
+remove `public.app_state` e apaga o usuário no Supabase Auth.
 
 ## Atualização do APK
 
 O app verifica um manifesto remoto de atualização ao abrir e também quando volta
 para primeiro plano.
+
+Essa função deve ficar desligada na build publicada na Play Store.
 
 ### 1) Publique um manifesto JSON
 
@@ -183,9 +201,12 @@ No `.env` da build:
 
 ```bash
 VITE_UPDATE_MANIFEST_URL="https://seu-servidor.com/app-update.json"
+VITE_ENABLE_APK_UPDATE="true"
 ```
 
 Se essa variável não existir, o app usa `/app-update.json` como fallback.
+
+Para a Play Store, mantenha `VITE_ENABLE_APK_UPDATE` ausente ou como `false`.
 
 ### 3) Fluxo no app
 
@@ -205,6 +226,20 @@ Se essa variável não existir, o app usa `/app-update.json` como fallback.
 - A versão atual do app vem de `package.json`
 - O Android usa `versionName` sincronizado com essa versão
 - Ao publicar um novo APK, incremente a versão e gere um novo manifesto
+
+## Privacidade
+
+O app coleta e sincroniza apenas os dados necessários para o funcionamento:
+
+- conta de usuário para autenticação
+- dados de motos, gastos, tarefas e perfil
+- foto de perfil, quando o usuário define uma imagem
+
+O app não compartilha dados com terceiros fora do fluxo de autenticação e
+sincronização configurado pelo próprio usuário.
+
+Se você quiser publicar, hospede uma política de privacidade pública e aponte o
+link na Play Console.
 
 ## Como rodar
 

@@ -17,7 +17,12 @@ import type {
   UserProfile,
   NotificationSettings,
 } from "../types";
-import { supabase, isSupabaseConfigured, getAppBaseUrl } from "../lib/supabase";
+import {
+  supabase,
+  isSupabaseConfigured,
+  getAppBaseUrl,
+  getAuthRedirectUrl,
+} from "../lib/supabase";
 
 interface AppContextType extends AppState {
   isProfileComplete: boolean;
@@ -51,6 +56,7 @@ interface AppContextType extends AppState {
   signInCloud: (email: string, password: string) => Promise<string | null>;
   signInDev: (password: string) => Promise<string | null>;
   signOutCloud: () => Promise<void>;
+  deleteAccount: () => Promise<string | null>;
   syncNow: () => Promise<void>;
 }
 
@@ -61,7 +67,8 @@ const LOCAL_UPDATED_AT_PREFIX = "motocontrol_local_updated_at";
 const INSTALL_YEAR_KEY = "ridecontrol_install_year";
 const DEV_SESSION_KEY = "ridecontrol_dev_session";
 const DEV_SESSION_ID = "dev-account";
-const DEV_SESSION_PASSWORD = "alex@232499";
+const DEV_SESSION_PASSWORD =
+  (import.meta.env.VITE_DEV_SESSION_PASSWORD as string | undefined) || "";
 const DEV_SESSION_EMAIL =
   (import.meta.env.VITE_DEV_ACCOUNT_EMAIL as string | undefined) ||
   "dev@ridecontrol.local";
@@ -120,6 +127,23 @@ const persistDevSession = (session: DevSession) => {
 
 const clearDevSession = () => {
   localStorage.removeItem(DEV_SESSION_KEY);
+};
+
+const clearAppLocalStorage = () => {
+  const keysToRemove: string[] = [];
+
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key) continue;
+
+    if (key.startsWith("motocontrol_") || key.startsWith("ridecontrol_")) {
+      keysToRemove.push(key);
+    }
+  }
+
+  keysToRemove.forEach((key) => {
+    localStorage.removeItem(key);
+  });
 };
 
 const nowTs = () => Date.now();
@@ -784,8 +808,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const signUpCloud = async (email: string, password: string) => {
     if (!supabase) return "Supabase não configurado.";
     try {
-      const baseUrl = getAppBaseUrl();
-      const redirectTo = baseUrl ? `${baseUrl}/auth` : undefined;
+      const redirectTo = getAuthRedirectUrl() || undefined;
       const { error } = await withTimeout(
         supabase.auth.signUp({
           email,
@@ -829,6 +852,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const signInDev = async (password: string) => {
+    if (!import.meta.env.DEV) {
+      return "A conta de dev não está disponível nesta build.";
+    }
+
     if (password !== DEV_SESSION_PASSWORD) {
       return "Senha inválida para a conta de dev.";
     }
@@ -856,6 +883,77 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     setState(createDefaultState());
     setCloudSyncStatus("idle");
     setCloudSyncError(null);
+  };
+
+  const deleteAccount = async () => {
+    try {
+      setCloudSyncStatus("syncing");
+      setCloudSyncError(null);
+
+      if (devSession) {
+        clearDevSession();
+      } else if (supabase && cloudUser) {
+        const { data: sessionData } = await withTimeout(
+          supabase.auth.getSession(),
+          6000,
+        );
+        const accessToken = sessionData.session?.access_token;
+
+        if (!accessToken) {
+          throw new Error("Sessão inválida para exclusão de conta.");
+        }
+
+        const deleteAccountUrl = `${getAppBaseUrl()}/api/delete-account`;
+
+        const response = await withTimeout(
+          fetch(deleteAccountUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({ userId: cloudUser.id }),
+          }),
+          CLOUD_REQUEST_TIMEOUT_MS,
+        );
+
+        if (!response.ok) {
+          let message = "Falha ao excluir conta.";
+
+          try {
+            const payload = (await response.json()) as { error?: string };
+            if (typeof payload.error === "string" && payload.error.trim()) {
+              message = payload.error.trim();
+            }
+          } catch {
+            // Keep the default message.
+          }
+
+          throw new Error(message);
+        }
+
+        await supabase.auth.signOut();
+      }
+
+      clearAppLocalStorage();
+      setDevSession(null);
+      setCloudUser(null);
+      setState(createDefaultState());
+      setIsCloudHydrating(false);
+      setIsCloudReady(true);
+      setCloudSyncStatus("idle");
+      setCloudSyncError(null);
+      setCloudBootProgress(100);
+      setCloudBootStatus("Concluído");
+
+      return null;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Falha ao excluir conta.";
+      setCloudSyncStatus("error");
+      setCloudSyncError(message);
+      return message;
+    }
   };
 
   useEffect(() => {
@@ -1312,7 +1410,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     setIsTutorialWelcomeSkippable(true);
   };
 
-  const isProfileComplete = state.userProfile.name.trim().length > 0;
+  const isProfileComplete =
+    state.userProfile.name.trim().length > 0 &&
+    state.userProfile.photoUrl.trim().length > 0 &&
+    state.userProfile.photoUrl !== DEFAULT_PROFILE_PHOTO;
   const activeUserEmail = cloudUser?.email ?? devSession?.email ?? null;
   const isAuthenticated = Boolean(cloudUser || devSession);
 
@@ -1351,6 +1452,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         signInCloud,
         signInDev,
         signOutCloud,
+        deleteAccount,
         syncNow,
       }}
     >

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, Camera, CheckCircle2, Sparkles, Save } from "lucide-react";
@@ -11,6 +11,7 @@ const DEFAULT_PROFILE_PHOTO = "/icons/perfil.png";
 
 export const PersonalInfo: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { userProfile, updateUserProfile } = useApp();
 
   const [name, setName] = useState(userProfile.name);
@@ -18,6 +19,8 @@ export const PersonalInfo: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const trimmedName = name.trim();
   const isNameValid = trimmedName.length > 0;
+  const isPhotoValid =
+    photoUrl.trim().length > 0 && photoUrl !== DEFAULT_PROFILE_PHOTO;
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -34,7 +37,7 @@ export const PersonalInfo: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!isNameValid) {
+    if (!isNameValid || !isPhotoValid) {
       return;
     }
 
@@ -49,7 +52,13 @@ export const PersonalInfo: React.FC = () => {
     setIsSaving(true);
 
     window.setTimeout(() => {
-      navigate("/perfil", { replace: true });
+      const locationState = location.state as
+        | { fromProfileSetup?: boolean }
+        | undefined;
+
+      navigate(locationState?.fromProfileSetup ? "/" : "/perfil", {
+        replace: true,
+      });
     }, 600);
   };
 
@@ -225,13 +234,19 @@ export const PersonalInfo: React.FC = () => {
                 </p>
               )}
             </div>
+
+            {!isPhotoValid && (
+              <p className="text-xs font-semibold text-red-500 ml-1 -mt-2">
+                Adicione uma foto de perfil para continuar.
+              </p>
+            )}
           </div>
 
           <button
             type="submit"
-            disabled={!isNameValid || isSaving}
+            disabled={!isNameValid || !isPhotoValid || isSaving}
             className={`w-full py-5 rounded-[24px] font-bold text-lg flex items-center justify-center gap-3 transition-transform ${
-              isNameValid && !isSaving
+              isNameValid && isPhotoValid && !isSaving
                 ? "bg-blue-500 text-white shadow-xl shadow-blue-200 active:scale-95"
                 : "bg-gray-200 text-gray-400 cursor-not-allowed"
             }`}

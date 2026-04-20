@@ -10,8 +10,14 @@ import { AppUpdateModal } from "./AppUpdateModal";
 const CHECK_INTERVAL_MS = 15 * 60 * 1000;
 const LAST_CHECK_AT_KEY = "ridecontrol_update_last_checked_at";
 const LAST_CHECKED_VERSION_KEY = "ridecontrol_update_last_checked_version";
+const IS_APK_UPDATE_ENABLED =
+  import.meta.env.DEV || import.meta.env.VITE_ENABLE_APK_UPDATE === "true";
 
 export const AppUpdateManager: React.FC = () => {
+  if (!IS_APK_UPDATE_ENABLED) {
+    return null;
+  }
+
   const [manifest, setManifest] = React.useState<AppUpdateManifest | null>(
     null,
   );

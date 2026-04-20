@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { Capacitor } from "@capacitor/core";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabasePublishableKey =
@@ -22,6 +23,15 @@ export const getAppBaseUrl = () => {
   }
 
   return "";
+};
+
+export const getAuthRedirectUrl = () => {
+  if (Capacitor.isNativePlatform()) {
+    return "com.ridecontrol.app://auth/callback";
+  }
+
+  const baseUrl = getAppBaseUrl();
+  return baseUrl ? `${baseUrl}/auth` : "";
 };
 
 export const supabase = isSupabaseConfigured
