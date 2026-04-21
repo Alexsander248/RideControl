@@ -1,4 +1,4 @@
-package com.ridecontrol.app;
+package com.orionlabsstudio.ridecontrol;
 
 import com.getcapacitor.BridgeActivity;
 
