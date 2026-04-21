@@ -20,8 +20,28 @@ import { useApp } from "../context/AppContext";
 const PASSWORD_MIN_LENGTH = 6;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SAVED_ACCOUNTS_KEY = "ridecontrol_saved_accounts";
+const DEFAULT_SIGNUP_COOLDOWN_SECONDS = 60;
 
 type AuthTab = "login" | "signup";
+
+const isRateLimitError = (rawError: string) => {
+  const normalized = rawError.toLowerCase();
+  return normalized.includes("rate limit") || normalized.includes("too many");
+};
+
+const getRateLimitCooldownSeconds = (rawError: string) => {
+  const message = rawError.toLowerCase();
+  const match = message.match(/(\d+)\s*(second|seconds|segundo|segundos)/i);
+
+  if (!match) return DEFAULT_SIGNUP_COOLDOWN_SECONDS;
+
+  const parsed = Number.parseInt(match[1], 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_SIGNUP_COOLDOWN_SECONDS;
+  }
+
+  return parsed;
+};
 
 const mapAuthError = (rawError: string, mode: AuthTab) => {
   const normalized = rawError.toLowerCase();
@@ -55,7 +75,7 @@ const mapAuthError = (rawError: string, mode: AuthTab) => {
     return `A senha precisa ter no mínimo ${PASSWORD_MIN_LENGTH} caracteres.`;
   }
 
-  if (normalized.includes("rate limit") || normalized.includes("too many")) {
+  if (isRateLimitError(rawError)) {
     return "Muitas tentativas em sequência. Aguarde um momento e tente novamente.";
   }
 
@@ -113,8 +133,13 @@ export const Auth: React.FC = () => {
   const [message, setMessage] = useState<string | null>(null);
   const [verificationSent, setVerificationSent] = useState(false);
   const [messageType, setMessageType] = useState<"info" | "error">("info");
+  const [signupCooldownUntil, setSignupCooldownUntil] = useState(0);
   const isSignUp = activeTab === "signup";
   const isDevMode = import.meta.env.DEV;
+  const signupCooldownSeconds = Math.max(
+    0,
+    Math.ceil((signupCooldownUntil - Date.now()) / 1000),
+  );
 
   const fromPath =
     (location.state as { from?: { pathname?: string } } | undefined)?.from
@@ -137,6 +162,20 @@ export const Auth: React.FC = () => {
       navigate(postLoginPath, { replace: true });
     }
   }, [isCloudAuthenticated, isCloudReady, navigate, postLoginPath]);
+
+  useEffect(() => {
+    if (signupCooldownSeconds <= 0) return;
+
+    const intervalId = window.setInterval(() => {
+      setSignupCooldownUntil((current) =>
+        current <= Date.now() ? 0 : current,
+      );
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [signupCooldownSeconds]);
 
   const validateForm = () => {
     if (!email.trim() || !password.trim()) {
@@ -166,6 +205,14 @@ export const Auth: React.FC = () => {
     if (isSignUp && password !== confirmPassword) {
       setMessageType("error");
       setMessage("As senhas não coincidem. Revise e tente novamente.");
+      return false;
+    }
+
+    if (isSignUp && signupCooldownSeconds > 0) {
+      setMessageType("error");
+      setMessage(
+        `Aguarde ${signupCooldownSeconds}s para tentar criar a conta novamente.`,
+      );
       return false;
     }
 
@@ -200,6 +247,11 @@ export const Auth: React.FC = () => {
     }
 
     if (error) {
+      if (isSignUp && isRateLimitError(error)) {
+        const cooldownSeconds = getRateLimitCooldownSeconds(error);
+        setSignupCooldownUntil(Date.now() + cooldownSeconds * 1000);
+      }
+
       setMessageType("error");
       setMessage(mapAuthError(error, activeTab));
       return;
@@ -402,12 +454,18 @@ export const Auth: React.FC = () => {
 
             <button
               type="button"
-              disabled={loading || !isCloudConfigured}
+              disabled={
+                loading ||
+                !isCloudConfigured ||
+                (isSignUp && signupCooldownSeconds > 0)
+              }
               onClick={() => void handleSubmit()}
               className="w-full h-14 rounded-2xl bg-blue-600 text-white font-black flex items-center justify-center gap-2 shadow-lg shadow-blue-200 transition-transform active:scale-[0.99] disabled:opacity-60"
             >
               {loading ? (
                 "Aguarde..."
+              ) : isSignUp && signupCooldownSeconds > 0 ? (
+                `Aguarde ${signupCooldownSeconds}s...`
               ) : !isSignUp ? (
                 <>
                   <Lock size={18} />
