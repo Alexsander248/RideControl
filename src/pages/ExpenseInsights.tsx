@@ -368,7 +368,7 @@ export const ExpenseInsights: React.FC = () => {
     validFullTankCyclesCount > 0 &&
     fuelConsumptionData.fuelDistanceKm > 0 &&
     fuelConsumptionData.totalFuelLiters > 0;
-  const avgMonthly = totalSpent / monthsInPeriod;
+  const avgMonthly = totalSpent / 12;
 
   const COLORS = {
     Combustivel: "#F97316",
