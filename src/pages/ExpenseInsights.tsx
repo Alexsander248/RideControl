@@ -120,6 +120,18 @@ export const ExpenseInsights: React.FC = () => {
     );
   }, [sourceExpenses, selectedBikeId, periodStart, periodEnd]);
 
+  const expensesForChart = useMemo(() => {
+    let filtered = sourceExpenses;
+
+    if (selectedBikeId) {
+      filtered = filtered.filter(
+        (expense) => expense.bikeId === selectedBikeId,
+      );
+    }
+
+    return filtered;
+  }, [sourceExpenses, selectedBikeId]);
+
   const periodButtonLabel = useMemo(() => {
     const start = parseLocalDate(periodStart);
     const end = parseLocalDate(periodEnd);
@@ -186,11 +198,22 @@ export const ExpenseInsights: React.FC = () => {
   }, [filteredExpenses]);
 
   const monthlyData = useMemo(() => {
-    const start = startOfMonth(parseLocalDate(periodStart));
-    const end = startOfMonth(parseLocalDate(periodEnd));
+    let start = startOfMonth(parseLocalDate(periodStart));
+    let end = startOfMonth(parseLocalDate(periodEnd));
 
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       return [];
+    }
+
+    // Garantir pelo menos 5 meses de dados
+    const startMonthIndex = start.getFullYear() * 12 + start.getMonth();
+    const endMonthIndex = end.getFullYear() * 12 + end.getMonth();
+    const monthsDiff = Math.abs(endMonthIndex - startMonthIndex) + 1;
+
+    if (monthsDiff < 5) {
+      // Se o período tem menos de 5 meses, mostrar os últimos 5 meses
+      end = endOfMonth(currentDate);
+      start = startOfMonth(addMonths(end, -4));
     }
 
     const labelPattern =
@@ -211,7 +234,7 @@ export const ExpenseInsights: React.FC = () => {
       cursor = addMonths(cursor, 1);
     }
 
-    filteredExpenses.forEach((expense) => {
+    expensesForChart.forEach((expense) => {
       const monthKey = format(parseLocalDate(expense.date), "yyyy-MM");
       if (totalsByMonth.has(monthKey)) {
         totalsByMonth.set(
@@ -225,7 +248,7 @@ export const ExpenseInsights: React.FC = () => {
       name: month.name,
       total: totalsByMonth.get(month.key) || 0,
     }));
-  }, [filteredExpenses, periodStart, periodEnd]);
+  }, [expensesForChart, periodStart, periodEnd, currentDate]);
 
   const monthlyChartWidth = Math.max(monthlyData.length * 68, 320);
 
