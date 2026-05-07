@@ -14,7 +14,7 @@ import {
 
 import { cn } from "../lib/utils";
 import { ImageViewerModal } from "../components/ImageViewerModal";
-import { currentAppVersion } from "../lib/appUpdate";
+import { currentAndroidVersionName } from "../lib/appUpdate";
 
 const DEFAULT_PROFILE_PHOTO = "/icons/perfil.png";
 
@@ -332,8 +332,16 @@ export const Profile: React.FC = () => {
 
       <div className="mt-12 text-center">
         <p className="text-[10px] text-gray-300 font-black uppercase tracking-[0.2em]">
-          RideControl v{currentAppVersion} <br />
-          Criado por: Alexsander Alcantara
+          RideControl v{currentAndroidVersionName} <br />
+          Criado por:{" "}
+          <a
+            href="https://www.linkedin.com/in/alexsander-alcantara/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-500 hover:text-blue-600 transition-colors"
+          >
+            Alexsander Alcantara
+          </a>
         </p>
       </div>
 

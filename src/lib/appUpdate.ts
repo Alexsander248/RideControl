@@ -1,4 +1,5 @@
 import appPackage from "../../package.json";
+import androidBuildGradle from "../../android/app/build.gradle?raw";
 
 export type AppUpdateManifest = {
   version: string;
@@ -27,7 +28,15 @@ const parseVersion = (value: string) =>
     .map((part) => Number.parseInt(part, 10))
     .map((part) => (Number.isFinite(part) ? part : 0));
 
+const parseAndroidVersionName = (value: string) => {
+  const match = value.match(/versionName\s+"([^"]+)"/);
+
+  return match?.[1]?.trim() ?? null;
+};
+
 export const currentAppVersion = appPackage.version;
+export const currentAndroidVersionName =
+  parseAndroidVersionName(androidBuildGradle) ?? currentAppVersion;
 
 export const compareVersions = (left: string, right: string): number => {
   const leftParts = parseVersion(left);
