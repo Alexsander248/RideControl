@@ -1,6 +1,6 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.2",
   "apkUrl": "https://example.com/RideControl.apk",
-  "notes": "Versao inicial do APK.",
+  "notes": "Versao 1.0.2 com melhorias, notificacoes e ajustes de recorrencias.",
   "force": false
 }

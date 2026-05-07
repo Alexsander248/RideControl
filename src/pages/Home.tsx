@@ -1,4 +1,4 @@
-﻿import React, { useEffect } from "react";
+﻿import React, { useEffect, useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 import { motion } from "motion/react";
@@ -11,10 +11,12 @@ import {
   TrendingUp,
   ChevronRight,
   AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 
 import { useApp } from "../context/AppContext";
 import { parseLocalDate } from "../lib/date";
+import { getRecurringExpenseAlerts } from "../lib/recurringExpenses";
 import { cn, formatCompactCurrency } from "../lib/utils";
 
 const DEFAULT_PROFILE_PHOTO = "/icons/perfil.png";
@@ -27,8 +29,16 @@ const EXPENSE_TYPE_LABELS: Record<string, string> = {
 };
 
 export const Home: React.FC = () => {
-  const { bikes, expenses, tasks, userProfile, tutorialViewed, startTutorial } =
-    useApp();
+  const {
+    bikes,
+    expenses,
+    tasks,
+    subscriptions,
+    userProfile,
+    tutorialViewed,
+    startTutorial,
+    updateExpense,
+  } = useApp();
   const location = useLocation();
   const isTutorialMode =
     new URLSearchParams(location.search).get("tutorial") === "1";
@@ -52,6 +62,7 @@ export const Home: React.FC = () => {
     amount: 25,
     km: 100,
     liters: 3,
+    status: "Pago" as const,
     notes: "Abastecimento tutorial",
   };
 
@@ -81,6 +92,9 @@ export const Home: React.FC = () => {
 
   const totalSpent = displayExpenses.reduce((sum, e) => sum + e.amount, 0);
   const activeTasks = tasks.filter((t) => !t.completed);
+  const pendingApprovals = displayExpenses.filter(
+    (e) => e.status === "Pendente",
+  );
   const preferredBikeWithTask = displayBikes.find(
     (bike) =>
       bike.isFavorite && activeTasks.some((task) => task.bikeId === bike.id),
@@ -92,6 +106,12 @@ export const Home: React.FC = () => {
         parseLocalDate(b.date).getTime() - parseLocalDate(a.date).getTime(),
     )
     .slice(0, 3);
+
+  const recurringAlerts = useMemo(
+    () =>
+      getRecurringExpenseAlerts({ bikes, expenses, subscriptions }, new Date()),
+    [bikes, expenses, subscriptions],
+  );
 
   return (
     <motion.div
@@ -135,7 +155,7 @@ export const Home: React.FC = () => {
             {formatCompactCurrency(totalSpent)}
           </h2>
 
-          <div className="flex gap-6">
+          <div className="flex gap-6 items-center">
             <div>
               <p className="text-blue-100 text-[10px] font-bold uppercase tracking-wider mb-1">
                 Motos
@@ -148,6 +168,13 @@ export const Home: React.FC = () => {
                 Tarefas ativas
               </p>
               <p className="text-lg font-bold">{activeTasks.length}</p>
+            </div>
+            <div className="w-px h-8 bg-white/20" />
+            <div>
+              <p className="text-blue-100 text-[10px] font-bold uppercase tracking-wider mb-1">
+                Aprovações pendentes
+              </p>
+              <p className="text-lg font-bold">{pendingApprovals.length}</p>
             </div>
           </div>
         </div>
@@ -193,6 +220,91 @@ export const Home: React.FC = () => {
           </div>
         </Link>
       </motion.div>
+
+      {recurringAlerts.length > 0 && (
+        <motion.section
+          className="mb-8 space-y-3"
+          initial={false}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: "easeOut", delay: 0.15 }}
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-bold">Gastos recorrentes</h3>
+            <p className="text-xs font-bold uppercase tracking-widest text-amber-500">
+              Atenção
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {recurringAlerts.map((alert) => {
+              const bikeName =
+                bikes.find((bike) => bike.id === alert.subscription.motoId)
+                  ?.name || "Moto";
+
+              return (
+                <div
+                  key={alert.expense.id}
+                  className={cn(
+                    "rounded-[32px] border p-5 shadow-sm",
+                    alert.isOverdue
+                      ? "border-red-100 bg-red-50"
+                      : "border-amber-100 bg-amber-50",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div
+                        className={cn(
+                          "inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-3",
+                          alert.isOverdue
+                            ? "bg-red-100 text-red-700"
+                            : "bg-amber-100 text-amber-700",
+                        )}
+                      >
+                        <AlertCircle size={12} />
+                        <span>
+                          {alert.isOverdue
+                            ? "Atrasado"
+                            : "Vence em menos de 24h"}
+                        </span>
+                      </div>
+                      <h4 className="font-black text-gray-900 text-lg truncate">
+                        {alert.subscription.name}
+                      </h4>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {bikeName} • {alert.subscription.category}
+                      </p>
+                      <p className="text-xs font-medium text-gray-500 mt-2">
+                        Vencimento:{" "}
+                        {format(alert.dueDate, "dd/MM/yyyy", { locale: ptBR })}
+                      </p>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <p className="text-xl font-black text-gray-900">
+                        {formatCompactCurrency(alert.expense.amount)}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateExpense({
+                            ...alert.expense,
+                            status: "Pago",
+                          })
+                        }
+                        className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-gray-900 border border-gray-100 shadow-sm transition-transform active:scale-95"
+                      >
+                        <CheckCircle2 size={16} className="text-emerald-600" />
+                        Confirmar pagamento
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </motion.section>
+      )}
 
       {/* Recent Activity */}
       <motion.section
@@ -300,6 +412,82 @@ export const Home: React.FC = () => {
                 Resolver agora
               </Link>
             </div>
+          </div>
+        </motion.section>
+      )}
+
+      {/* Pending approvals section */}
+      {pendingApprovals.length > 0 && (
+        <motion.section
+          className="mb-8 mt-8"
+          initial={false}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: "easeOut", delay: 0.26 }}
+        >
+          <h3 className="text-xl font-bold mb-6">Aprovações pendentes</h3>
+          <div className="space-y-4">
+            {pendingApprovals.map((expense, index) => (
+              <motion.div
+                key={expense.id}
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className="bg-white p-4 rounded-3xl flex items-center gap-4 shadow-sm border border-gray-50"
+              >
+                <div
+                  className={cn(
+                    "w-12 h-12 rounded-2xl flex items-center justify-center text-white ",
+                    expense.type === "Combustivel"
+                      ? "bg-orange-500"
+                      : expense.type === "Manutencao"
+                      ? "bg-blue-500"
+                      : expense.type === "Pecas"
+                      ? "bg-purple-500"
+                      : "bg-gray-500",
+                  )}
+                >
+                  {expense.type === "Combustivel" ? (
+                    <Fuel size={20} />
+                  ) : (
+                    <Wrench size={20} />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-bold text-sm truncate">
+                    {EXPENSE_TYPE_LABELS[expense.type] || expense.type}
+                  </h4>
+                  <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wider">
+                    {format(parseLocalDate(expense.date), "dd/MM/yyyy", {
+                      locale: ptBR,
+                    })}{" "}
+                    - {displayBikes.find((b) => b.id === expense.bikeId)?.name}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="font-black text-gray-900">
+                    {expense.amount.toLocaleString("pt-BR", {
+                      style: "currency",
+                      currency: "BRL",
+                    })}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateExpense({
+                        ...expense,
+                        status: "Pago",
+                      })
+                    }
+                    title="Confirmar pagamento"
+                    aria-label="Confirmar pagamento"
+                    className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-sm font-bold text-gray-900 border border-gray-100 shadow-sm transition-transform active:scale-95 w-36 justify-center"
+                  >
+                    <CheckCircle2 size={16} className="text-emerald-600" />
+                    <span>Confirmar</span>
+                  </button>
+                </div>
+              </motion.div>
+            ))}
           </div>
         </motion.section>
       )}

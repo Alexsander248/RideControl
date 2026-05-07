@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
-import { ArrowLeft, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, Save, Trash2, CheckCircle2 } from "lucide-react";
 
 import { useApp } from "../context/AppContext";
 import { getTodayLocalIsoDate, parseLocalDate } from "../lib/date";
@@ -103,6 +103,17 @@ export const ExpenseActivityDetails: React.FC = () => {
   const bikeName =
     bikes.find((bike) => bike.id === expense.bikeId)?.name || "-";
 
+  const isPendingPayment = expense.status === "Pendente";
+
+  const handleConfirmPayment = () => {
+    updateExpense({
+      ...expense,
+      status: "Pago",
+    });
+    setError("");
+    setIsEditing(false);
+  };
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -165,6 +176,32 @@ export const ExpenseActivityDetails: React.FC = () => {
           <p className="text-gray-500 text-sm font-medium">{bikeName}</p>
         </div>
       </header>
+
+      {isPendingPayment && (
+        <div className="mb-6 rounded-[28px] border border-amber-100 bg-amber-50 p-5 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-2">
+            Pendente
+          </p>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="font-bold text-amber-900">
+                Pagamento aguardando confirmação
+              </p>
+              <p className="text-sm text-amber-800 mt-1">
+                Esta atividade recorrente ainda não foi marcada como paga.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleConfirmPayment}
+              className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-gray-900 border border-gray-100 shadow-sm transition-transform active:scale-95"
+            >
+              <CheckCircle2 size={16} className="text-emerald-600" />
+              Confirmar pagamento
+            </button>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSave} className="space-y-6">
         {error && (

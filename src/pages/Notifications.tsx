@@ -1,16 +1,39 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Bell, Calendar } from "lucide-react";
+import { ArrowLeft, Bell, Calendar, Smartphone, Clock3 } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { parseLocalDate } from "../lib/date";
+import { getRecurringExpenseAlerts } from "../lib/recurringExpenses";
+import {
+  checkMobileNotificationPermission,
+  requestMobileNotificationPermission,
+  syncMobileNotifications,
+  type MobileNotificationPermission,
+} from "../lib/mobileNotifications";
 import { cn } from "../lib/utils";
 
 const DAY_OPTIONS = [1, 3, 7] as const;
 
 export const Notifications: React.FC = () => {
   const navigate = useNavigate();
-  const { bikes, tasks, notificationSettings, updateNotificationSettings } =
-    useApp();
+  const {
+    bikes,
+    tasks,
+    expenses,
+    subscriptions,
+    notificationSettings,
+    updateNotificationSettings,
+  } = useApp();
+  const [mobilePermission, setMobilePermission] =
+    useState<MobileNotificationPermission>("prompt");
+  const [isRequestingMobilePermission, setIsRequestingMobilePermission] =
+    useState(false);
+
+  useEffect(() => {
+    void checkMobileNotificationPermission().then((permission) => {
+      setMobilePermission(permission);
+    });
+  }, []);
 
   const upcomingTasks = useMemo(() => {
     const today = new Date();
@@ -33,6 +56,36 @@ export const Notifications: React.FC = () => {
       );
   }, [tasks, notificationSettings.daysBefore]);
 
+  const recurringAlerts = useMemo(
+    () =>
+      getRecurringExpenseAlerts({ bikes, expenses, subscriptions }, new Date()),
+    [bikes, expenses, subscriptions],
+  );
+
+  const handleEnableMobileNotifications = async () => {
+    setIsRequestingMobilePermission(true);
+
+    try {
+      const permission = await requestMobileNotificationPermission();
+      setMobilePermission(permission);
+
+      if (permission === "granted") {
+        await syncMobileNotifications(
+          {
+            bikes,
+            expenses,
+            tasks,
+            subscriptions,
+            notificationSettings,
+          },
+          new Date(),
+        );
+      }
+    } finally {
+      setIsRequestingMobilePermission(false);
+    }
+  };
+
   return (
     <div className="p-6 pb-24">
       <header className="flex items-center gap-4 mb-8">
@@ -44,6 +97,47 @@ export const Notifications: React.FC = () => {
         </button>
         <h1 className="text-2xl font-bold">Notificações</h1>
       </header>
+
+      <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-50 mb-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <Smartphone size={20} />
+            </div>
+            <div className="min-w-0">
+              <p className="font-bold text-gray-900">Lembretes no celular</p>
+              <p className="text-sm text-gray-500 mt-1 leading-relaxed">
+                Receba avisos automáticos para tarefas e gastos recorrentes.
+              </p>
+              <p className="text-xs font-semibold text-gray-400 mt-2 uppercase tracking-wider">
+                Status:{" "}
+                {mobilePermission === "granted"
+                  ? "Ativado"
+                  : mobilePermission === "denied"
+                  ? "Negado"
+                  : mobilePermission === "unsupported"
+                  ? "Apenas no celular"
+                  : "Pendente"}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void handleEnableMobileNotifications()}
+            disabled={isRequestingMobilePermission}
+            className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-white font-bold text-sm shadow-sm disabled:opacity-60"
+          >
+            <Clock3 size={16} />
+            {mobilePermission === "granted" ? "Atualizar" : "Ativar"}
+          </button>
+        </div>
+
+        <p className="text-xs text-gray-400 mt-4 leading-relaxed">
+          Quando a permissão estiver ativa, o app agenda lembretes um dia antes
+          dos gastos recorrentes e no prazo configurado para tarefas.
+        </p>
+      </div>
 
       <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-50 mb-6">
         <div className="flex items-center justify-between gap-4">
@@ -104,6 +198,78 @@ export const Notifications: React.FC = () => {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="mt-6 border-t border-gray-100 pt-6">
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <Bell size={20} />
+              </div>
+              <div className="min-w-0">
+                <p className="font-bold text-gray-900">Gastos recorrentes</p>
+                <p className="text-sm text-gray-500">
+                  Avisar um dia antes do vencimento
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                updateNotificationSettings({
+                  recurringExpenseDueSoonEnabled:
+                    !notificationSettings.recurringExpenseDueSoonEnabled,
+                })
+              }
+              className={cn(
+                "w-12 h-6 rounded-full relative transition-colors",
+                notificationSettings.recurringExpenseDueSoonEnabled
+                  ? "bg-amber-500"
+                  : "bg-gray-200",
+              )}
+              aria-label="Alternar lembretes de gastos recorrentes"
+            >
+              <span
+                className={cn(
+                  "absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all",
+                  notificationSettings.recurringExpenseDueSoonEnabled
+                    ? "left-7"
+                    : "left-1",
+                )}
+              />
+            </button>
+          </div>
+
+          {recurringAlerts.length === 0 ? (
+            <p className="text-sm text-gray-500">
+              Nenhum gasto recorrente está próximo do vencimento no momento.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {recurringAlerts.map((alert) => {
+                const bikeName =
+                  bikes.find((bike) => bike.id === alert.subscription.motoId)
+                    ?.name || "Moto";
+
+                return (
+                  <div
+                    key={alert.expense.id}
+                    className="p-4 bg-amber-50 rounded-2xl"
+                  >
+                    <p className="font-bold text-gray-900">
+                      {alert.subscription.name}
+                    </p>
+                    <p className="text-sm text-gray-500">{bikeName}</p>
+                    <div className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-1 rounded-full">
+                      <Calendar size={12} />
+                      <span>{alert.dueDate.toLocaleDateString("pt-BR")}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 

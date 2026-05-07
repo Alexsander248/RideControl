@@ -6,10 +6,12 @@ import React, {
   useRef,
 } from "react";
 import type { User } from "@supabase/supabase-js";
+import { Capacitor } from "@capacitor/core";
 
 import type {
   Bike,
   Expense,
+  RecurringSubscription,
   MaintenanceTask,
   AppState,
   AppSyncMeta,
@@ -23,6 +25,12 @@ import {
   getAppBaseUrl,
   getAuthRedirectUrl,
 } from "../lib/supabase";
+import {
+  getMissingRecurringExpenses,
+  getRecurringExpenseAlerts,
+  shouldSendRecurringNotification,
+} from "../lib/recurringExpenses";
+import { syncMobileNotifications } from "../lib/mobileNotifications";
 
 interface AppContextType extends AppState {
   isProfileComplete: boolean;
@@ -46,6 +54,9 @@ interface AppContextType extends AppState {
   deleteExpense: (id: string) => void;
   addTask: (task: Omit<MaintenanceTask, "id">) => void;
   toggleTask: (id: string) => void;
+  addSubscription: (subscription: Omit<RecurringSubscription, "id">) => void;
+  updateSubscription: (subscription: RecurringSubscription) => void;
+  deleteSubscription: (id: string) => void;
   updateUserProfile: (profile: Partial<UserProfile>) => void;
   updateNotificationSettings: (settings: Partial<NotificationSettings>) => void;
   markTutorialViewed: () => void;
@@ -81,6 +92,7 @@ const DEFAULT_PROFILE_PHOTO = "/icons/perfil.png";
 const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   taskDueSoonEnabled: true,
   daysBefore: 3,
+  recurringExpenseDueSoonEnabled: true,
 };
 
 type SyncCollectionKey = keyof SyncCollectionsMeta;
@@ -159,6 +171,7 @@ const createEmptyCollectionsMeta = (): SyncCollectionsMeta => ({
   bikes: {},
   expenses: {},
   tasks: {},
+  subscriptions: {},
 });
 
 const createDefaultSyncMeta = (timestamp: number): AppSyncMeta => ({
@@ -174,11 +187,13 @@ const cloneSyncMeta = (syncMeta: AppSyncMeta): AppSyncMeta => ({
     bikes: { ...syncMeta.items.bikes },
     expenses: { ...syncMeta.items.expenses },
     tasks: { ...syncMeta.items.tasks },
+    subscriptions: { ...syncMeta.items.subscriptions },
   },
   deleted: {
     bikes: { ...syncMeta.deleted.bikes },
     expenses: { ...syncMeta.deleted.expenses },
     tasks: { ...syncMeta.deleted.tasks },
+    subscriptions: { ...syncMeta.deleted.subscriptions },
   },
   userProfileUpdatedAt: syncMeta.userProfileUpdatedAt,
   notificationSettingsUpdatedAt: syncMeta.notificationSettingsUpdatedAt,
@@ -243,6 +258,7 @@ const normalizeSyncMeta = (
   bikes: Bike[],
   expenses: Expense[],
   tasks: MaintenanceTask[],
+  subscriptions: RecurringSubscription[],
   fallback: number,
 ): AppSyncMeta => {
   const fallbackSync = createDefaultSyncMeta(fallback);
@@ -264,6 +280,11 @@ const normalizeSyncMeta = (
         source?.items?.tasks as Record<string, unknown> | undefined,
         fallback,
       ),
+      subscriptions: buildCollectionSyncMap(
+        subscriptions,
+        source?.items?.subscriptions as Record<string, unknown> | undefined,
+        fallback,
+      ),
     },
     deleted: {
       bikes: sanitizeRecordTimestamps(
@@ -276,6 +297,10 @@ const normalizeSyncMeta = (
       ),
       tasks: sanitizeRecordTimestamps(
         source?.deleted?.tasks as Record<string, unknown> | undefined,
+        fallback,
+      ),
+      subscriptions: sanitizeRecordTimestamps(
+        source?.deleted?.subscriptions as Record<string, unknown> | undefined,
         fallback,
       ),
     },
@@ -383,13 +408,21 @@ const normalizeState = (
     ...bike,
     initialKm: bike.initialKm ?? bike.currentKm,
   }));
-  const expenses = source.expenses || [];
+  const expenses = (source.expenses || []).map((expense) => ({
+    ...expense,
+    status: expense.status ?? "Pago",
+  }));
   const tasks = source.tasks || [];
+  const subscriptions = (source.subscriptions || []).map((subscription) => ({
+    ...subscription,
+    active: subscription.active ?? true,
+  }));
 
   return {
     bikes,
     expenses,
     tasks,
+    subscriptions,
     userProfile: {
       ...defaultProfile,
       ...(source.userProfile || {}),
@@ -405,6 +438,7 @@ const normalizeState = (
       bikes,
       expenses,
       tasks,
+      subscriptions,
       fallbackTimestamp,
     ),
   };
@@ -618,6 +652,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       remoteBaseTs,
     );
 
+    const mergedSubscriptions = mergeCollectionByTimestamp(
+      localState.subscriptions,
+      remoteState.subscriptions,
+      localSyncMeta,
+      remoteSyncMeta,
+      "subscriptions",
+      localBaseTs,
+      remoteBaseTs,
+    );
+
     const useRemoteProfile =
       remoteSyncMeta.userProfileUpdatedAt >= localSyncMeta.userProfileUpdatedAt;
     const useRemoteNotifications =
@@ -632,6 +676,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         bikes: mergedBikes.items,
         expenses: mergedExpenses.items,
         tasks: mergedTasks.items,
+        subscriptions: mergedSubscriptions.items,
         userProfile: useRemoteProfile
           ? remoteState.userProfile
           : localState.userProfile,
@@ -646,6 +691,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             bikes: mergedBikes.itemsMeta,
             expenses: mergedExpenses.itemsMeta,
             tasks: mergedTasks.itemsMeta,
+            subscriptions: mergedSubscriptions.itemsMeta,
           },
           deleted: {
             bikes: {
@@ -662,6 +708,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
               ...localSyncMeta.deleted.tasks,
               ...remoteSyncMeta.deleted.tasks,
               ...mergedTasks.deletedMeta,
+            },
+            subscriptions: {
+              ...localSyncMeta.deleted.subscriptions,
+              ...remoteSyncMeta.deleted.subscriptions,
+              ...mergedSubscriptions.deletedMeta,
             },
           },
           userProfileUpdatedAt: Math.max(
@@ -804,6 +855,124 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       );
     }
   };
+
+  useEffect(() => {
+    if (!isCloudReady || isCloudHydrating) {
+      return;
+    }
+
+    const now = new Date();
+
+    setState((prev) => {
+      const missingRecurringExpenses = getMissingRecurringExpenses(prev, now);
+
+      if (missingRecurringExpenses.length === 0) {
+        return prev;
+      }
+
+      const timestamp = nowTs();
+      const syncMeta = getMutableSyncMeta(prev, timestamp);
+      const nextExpenses = [...prev.expenses];
+
+      missingRecurringExpenses.forEach((expense) => {
+        const newExpense = {
+          ...expense,
+          id: generateId(),
+          status: "Pendente" as ExpenseStatus,
+        };
+
+        touchCollectionItem(syncMeta, "expenses", newExpense.id, timestamp);
+        nextExpenses.push(newExpense);
+      });
+
+      return {
+        ...prev,
+        expenses: nextExpenses,
+        syncMeta,
+      };
+    });
+  }, [
+    isCloudReady,
+    isCloudHydrating,
+    state.subscriptions,
+    state.expenses,
+    state.bikes,
+  ]);
+
+  useEffect(() => {
+    if (!isCloudReady || isCloudHydrating) {
+      return;
+    }
+
+    if (Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    const alerts = getRecurringExpenseAlerts(state, new Date());
+    if (alerts.length === 0 || typeof Notification === "undefined") {
+      return;
+    }
+
+    const activeUserId = cloudUser?.id ?? devSession?.id ?? "guest";
+
+    alerts.forEach((alert) => {
+      if (!shouldSendRecurringNotification(alert, new Date())) {
+        return;
+      }
+
+      const monthKey = getRecurringMonthKey(
+        new Date(alert.expense.dueDate || alert.expense.date),
+      );
+      const notificationKey = `${activeUserId}:${alert.subscription.id}:${monthKey}`;
+
+      if (localStorage.getItem(notificationKey) === "1") {
+        return;
+      }
+
+      try {
+        new Notification("Gasto recorrente próximo do vencimento", {
+          body: `${alert.subscription.name} vence em menos de 24h na moto ${
+            state.bikes.find((bike) => bike.id === alert.subscription.motoId)
+              ?.name || "selecionada"
+          }.`,
+        });
+        localStorage.setItem(notificationKey, "1");
+      } catch {
+        // Ignore notification failures when permission is granted but delivery is not available.
+      }
+    });
+  }, [isCloudReady, isCloudHydrating, cloudUser?.id, devSession?.id, state]);
+
+  useEffect(() => {
+    if (!isCloudReady || isCloudHydrating) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void syncMobileNotifications(
+        {
+          bikes: state.bikes,
+          expenses: state.expenses,
+          tasks: state.tasks,
+          subscriptions: state.subscriptions,
+          notificationSettings: state.notificationSettings,
+        },
+        new Date(),
+      );
+    }, 1200);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [
+    isCloudReady,
+    isCloudHydrating,
+    state.bikes,
+    state.expenses,
+    state.tasks,
+    state.subscriptions,
+    state.notificationSettings,
+  ]);
 
   const signUpCloud = async (email: string, password: string) => {
     if (!supabase) return "Supabase não configurado.";
@@ -1155,6 +1324,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       const removedTaskIds = prev.tasks
         .filter((task) => task.bikeId === id)
         .map((task) => task.id);
+      const removedSubscriptionIds = prev.subscriptions
+        .filter((subscription) => subscription.motoId === id)
+        .map((subscription) => subscription.id);
 
       const syncMeta = getMutableSyncMeta(prev, timestamp);
       markCollectionDeleted(syncMeta, "bikes", id, timestamp);
@@ -1164,12 +1336,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       removedTaskIds.forEach((taskId) => {
         markCollectionDeleted(syncMeta, "tasks", taskId, timestamp);
       });
+      removedSubscriptionIds.forEach((subscriptionId) => {
+        markCollectionDeleted(
+          syncMeta,
+          "subscriptions",
+          subscriptionId,
+          timestamp,
+        );
+      });
 
       return {
         ...prev,
         bikes: prev.bikes.filter((b) => b.id !== id),
         expenses: prev.expenses.filter((e) => e.bikeId !== id),
         tasks: prev.tasks.filter((t) => t.bikeId !== id),
+        subscriptions: prev.subscriptions.filter(
+          (subscription) => subscription.motoId !== id,
+        ),
         syncMeta,
       };
     });
@@ -1206,7 +1389,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const addExpense = (expenseData: Omit<Expense, "id">) => {
     const timestamp = nowTs();
-    const newExpense: Expense = { ...expenseData, id: generateId() };
+    const newExpense: Expense = {
+      ...expenseData,
+      id: generateId(),
+      status: expenseData.status ?? "Pago",
+    };
 
     setState((prev) => {
       const nextExpenses = [...prev.expenses, newExpense];
@@ -1302,6 +1489,70 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       return {
         ...prev,
         tasks: [...prev.tasks, newTask],
+        syncMeta,
+      };
+    });
+  };
+
+  const addSubscription = (
+    subscriptionData: Omit<RecurringSubscription, "id">,
+  ) => {
+    const timestamp = nowTs();
+    const newSubscription: RecurringSubscription = {
+      ...subscriptionData,
+      id: generateId(),
+      active: subscriptionData.active ?? true,
+    };
+
+    setState((prev) => {
+      const syncMeta = getMutableSyncMeta(prev, timestamp);
+      touchCollectionItem(
+        syncMeta,
+        "subscriptions",
+        newSubscription.id,
+        timestamp,
+      );
+
+      return {
+        ...prev,
+        subscriptions: [...prev.subscriptions, newSubscription],
+        syncMeta,
+      };
+    });
+  };
+
+  const updateSubscription = (subscription: RecurringSubscription) => {
+    const timestamp = nowTs();
+
+    setState((prev) => {
+      const syncMeta = getMutableSyncMeta(prev, timestamp);
+      touchCollectionItem(
+        syncMeta,
+        "subscriptions",
+        subscription.id,
+        timestamp,
+      );
+
+      return {
+        ...prev,
+        subscriptions: prev.subscriptions.map((item) =>
+          item.id === subscription.id ? subscription : item,
+        ),
+        syncMeta,
+      };
+    });
+  };
+
+  const deleteSubscription = (id: string) => {
+    const timestamp = nowTs();
+
+    setState((prev) => {
+      const syncMeta = getMutableSyncMeta(prev, timestamp);
+      markCollectionDeleted(syncMeta, "subscriptions", id, timestamp);
+
+      return {
+        ...prev,
+        subscriptions: prev.subscriptions.filter((item) => item.id !== id),
         syncMeta,
       };
     });
@@ -1442,6 +1693,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         deleteExpense,
         addTask,
         toggleTask,
+        addSubscription,
+        updateSubscription,
+        deleteSubscription,
         updateUserProfile,
         updateNotificationSettings,
         markTutorialViewed,

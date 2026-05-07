@@ -1,6 +1,6 @@
 ﻿import React from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { X, Fuel, Wrench, Package, CheckSquare } from "lucide-react";
+import { X, DollarSign, CheckSquare } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface QuickActionModalProps {
@@ -16,22 +16,10 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({
 
   const actions = [
     {
-      icon: Fuel,
-      label: "Adicionar combustível",
+      icon: DollarSign,
+      label: "Adicionar gastos",
       color: "bg-orange-500",
-      path: "/adicionar-gasto?type=Combustivel",
-    },
-    {
-      icon: Wrench,
-      label: "Manutenção",
-      color: "bg-blue-500",
-      path: "/adicionar-gasto?type=Manutencao",
-    },
-    {
-      icon: Package,
-      label: "Peças",
-      color: "bg-green-500",
-      path: "/adicionar-gasto?type=Pecas",
+      path: "/adicionar-gasto",
     },
     {
       icon: CheckSquare,

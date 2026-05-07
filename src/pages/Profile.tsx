@@ -2,7 +2,15 @@
 import { useNavigate } from "react-router-dom";
 
 import { useApp } from "../context/AppContext";
-import { User, Bell, Moon, LogOut, ChevronRight, BookOpen } from "lucide-react";
+import {
+  User,
+  Bell,
+  Moon,
+  LogOut,
+  ChevronRight,
+  BookOpen,
+  Repeat2,
+} from "lucide-react";
 
 import { cn } from "../lib/utils";
 import { ImageViewerModal } from "../components/ImageViewerModal";
@@ -121,6 +129,12 @@ export const Profile: React.FC = () => {
       label: "Notificações",
       color: "bg-orange-50",
       path: "/perfil/notificacoes",
+    },
+    {
+      icon: Repeat2,
+      label: "Gastos recorrentes",
+      color: "bg-amber-50",
+      path: "/perfil/recorrencias",
     },
     { icon: Moon, label: "Modo escuro", color: "bg-purple-50", isToggle: true },
     {

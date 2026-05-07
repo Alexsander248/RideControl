@@ -32,6 +32,8 @@ import { ExpenseActivityDetails } from "./pages/ExpenseActivityDetails";
 import { AddBike } from "./pages/AddBike";
 import { AddExpense } from "./pages/AddExpense";
 import { AddTask } from "./pages/AddTask";
+import { AddRecurringExpense } from "./pages/AddRecurringExpense";
+import { RecurringExpenses } from "./pages/RecurringExpenses";
 import { Profile } from "./pages/Profile";
 import { PersonalInfo } from "./pages/PersonalInfo.tsx";
 import { Notifications } from "./pages/Notifications";
@@ -198,10 +200,15 @@ function AppContent() {
               element={<ExpenseActivityDetails />}
             />
             <Route path="perfil" element={<Profile />} />
+            <Route path="perfil/recorrencias" element={<RecurringExpenses />} />
             <Route path="perfil/informacoes" element={<PersonalInfo />} />
             <Route path="perfil/notificacoes" element={<Notifications />} />
             <Route path="adicionar-moto" element={<AddBike />} />
             <Route path="adicionar-gasto" element={<AddExpense />} />
+            <Route
+              path="adicionar-recorrente"
+              element={<AddRecurringExpense />}
+            />
             <Route path="adicionar-tarefa" element={<AddTask />} />
           </Route>
         </Route>

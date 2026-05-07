@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import {
@@ -251,6 +251,21 @@ export const ExpenseInsights: React.FC = () => {
   }, [expensesForChart, periodStart, periodEnd, currentDate]);
 
   const monthlyChartWidth = Math.max(monthlyData.length * 68, 320);
+
+  const chartContainerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = chartContainerRef.current;
+    if (!el) return;
+
+    // Scroll to the right so the latest month is visible by default
+    // Use a small timeout to wait for layout/width calculation
+    const t = setTimeout(() => {
+      el.scrollLeft = el.scrollWidth - el.clientWidth;
+    }, 0);
+
+    return () => clearTimeout(t);
+  }, [monthlyData.length]);
 
   const totalSpent = filteredExpenses.reduce(
     (sum, expense) => sum + expense.amount,
@@ -695,7 +710,7 @@ export const ExpenseInsights: React.FC = () => {
 
       <section className="bg-white rounded-[32px] p-8 shadow-sm border border-gray-50 mb-8">
         <h3 className="text-lg font-bold mb-6">Gastos Mensais</h3>
-        <div className="overflow-x-auto pb-2">
+        <div ref={chartContainerRef} className="overflow-x-auto pb-2">
           <div style={{ width: `${monthlyChartWidth}px`, height: "256px" }}>
             <BarChart data={monthlyData} width={monthlyChartWidth} height={256}>
               <CartesianGrid
@@ -732,12 +747,16 @@ export const ExpenseInsights: React.FC = () => {
                 ]}
                 labelFormatter={(label) => `Mês: ${label}`}
               />
-              <Bar
-                dataKey="total"
-                fill="#22C55E"
-                radius={[8, 8, 8, 8]}
-                barSize={24}
-              />
+              <Bar dataKey="total" radius={[8, 8, 8, 8]} barSize={24}>
+                {monthlyData.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={
+                      index === monthlyData.length - 1 ? "#16A34A" : "#22C55E"
+                    }
+                  />
+                ))}
+              </Bar>
             </BarChart>
           </div>
         </div>

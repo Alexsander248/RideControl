@@ -188,9 +188,9 @@ Hospede um arquivo JSON em um servidor público, por exemplo:
 
 ```json
 {
-  "version": "1.0.1",
+  "version": "1.0.2",
   "apkUrl": "https://seu-servidor.com/RideControl.apk",
-  "notes": "Correções e melhorias na versão 1.0.1",
+  "notes": "Correções e melhorias na versão 1.0.2",
   "force": false
 }
 ```

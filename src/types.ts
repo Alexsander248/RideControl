@@ -5,6 +5,18 @@ export type ExpenseCategory =
   | "Equipamentos"
   | "Outros";
 
+export type ExpenseStatus = "Pendente" | "Pago";
+
+export interface RecurringSubscription {
+  id: string;
+  motoId: string;
+  name: string;
+  amount: number;
+  dueDay: number;
+  category: string;
+  active: boolean;
+}
+
 export interface Expense {
   id: string;
   bikeId: string;
@@ -15,6 +27,9 @@ export interface Expense {
   liters?: number;
   fullTank?: boolean;
   notes?: string;
+  status?: ExpenseStatus;
+  subscriptionId?: string;
+  dueDate?: string;
 }
 
 export type Priority = "ALTA" | "MEDIA" | "BAIXA";
@@ -52,12 +67,14 @@ export interface UserProfile {
 export interface NotificationSettings {
   taskDueSoonEnabled: boolean;
   daysBefore: number;
+  recurringExpenseDueSoonEnabled: boolean;
 }
 
 export interface SyncCollectionsMeta {
   bikes: Record<string, number>;
   expenses: Record<string, number>;
   tasks: Record<string, number>;
+  subscriptions: Record<string, number>;
 }
 
 export interface AppSyncMeta {
@@ -72,6 +89,7 @@ export interface AppState {
   bikes: Bike[];
   expenses: Expense[];
   tasks: MaintenanceTask[];
+  subscriptions: RecurringSubscription[];
   userProfile: UserProfile;
   notificationSettings: NotificationSettings;
   tutorialViewed: boolean;
