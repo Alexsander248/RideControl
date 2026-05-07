@@ -106,8 +106,8 @@ export const Notifications: React.FC = () => {
       </header>
 
       <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-50 mb-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3 min-w-0">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-3 min-w-0 flex-1">
             <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
               <Smartphone size={20} />
             </div>
@@ -133,18 +133,12 @@ export const Notifications: React.FC = () => {
             type="button"
             onClick={() => void handleEnableMobileNotifications()}
             disabled={isRequestingMobilePermission}
-            className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-white font-bold text-sm shadow-sm disabled:opacity-60"
+            className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-white font-bold text-sm shadow-sm disabled:opacity-60 shrink-0"
           >
             <Clock3 size={16} />
             {mobilePermission === "granted" ? "Atualizar" : "Ativar"}
           </button>
         </div>
-
-        <p className="text-xs text-gray-400 mt-4 leading-relaxed">
-          Quando a permissão estiver ativa, o app agenda lembretes um dia antes
-          dos gastos recorrentes, no prazo configurado para tarefas e também um
-          lembrete de retorno após 24h sem abrir o app.
-        </p>
       </div>
 
       <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-50 mb-6">
