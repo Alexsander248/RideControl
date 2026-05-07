@@ -7,6 +7,27 @@ import { parseLocalDate } from "./date";
 const NOTIFICATION_HOUR = 9;
 const NOTIFICATION_MINUTE = 0;
 const IMMEDIATE_DELAY_MS = 60 * 1000;
+const REENGAGEMENT_DELAY_MS = 24 * 60 * 60 * 1000;
+const REENGAGEMENT_NOTIFICATION_PREFIX = "reengagement";
+
+const REENGAGEMENT_MESSAGES = [
+  {
+    title: "RideControl quer te lembrar",
+    body: "Abasteceu? Adicione nos seus gastos para manter tudo em dia.",
+  },
+  {
+    title: "Seu controle está te esperando",
+    body: "Fez alguma despesa com a moto? Registre agora antes de esquecer.",
+  },
+  {
+    title: "Hora de atualizar a moto",
+    body: "Manteve a moto em dia? Lance abastecimento, manutenção e gastos no RideControl.",
+  },
+  {
+    title: "Volta rapidinha ao app",
+    body: "Anote seus gastos de hoje e mantenha o histórico da moto completo.",
+  },
+];
 
 export type MobileNotificationPermission =
   | "granted"
@@ -39,6 +60,17 @@ const createStableNotificationId = (seed: string) => {
 
   return Math.abs(hash);
 };
+
+const pickReengagementMessage = (scope: string, referenceDate: Date) => {
+  const bucket = Math.floor(referenceDate.getTime() / REENGAGEMENT_DELAY_MS);
+  const seed = `${REENGAGEMENT_NOTIFICATION_PREFIX}:${scope}:${bucket}`;
+  const index = createStableNotificationId(seed) % REENGAGEMENT_MESSAGES.length;
+
+  return REENGAGEMENT_MESSAGES[index];
+};
+
+const getReengagementNotificationId = (scope: string) =>
+  createStableNotificationId(`${REENGAGEMENT_NOTIFICATION_PREFIX}:${scope}`);
 
 const normalizeNotificationPermission = (
   permission: string | undefined,
@@ -87,7 +119,14 @@ export const syncMobileNotifications = async (
     return { scheduled: 0, permission };
   }
 
-  await LocalNotifications.removeAllPendingNotifications();
+  const pendingNotifications = await LocalNotifications.getPending();
+  if (pendingNotifications.notifications.length > 0) {
+    await LocalNotifications.cancel({
+      notifications: pendingNotifications.notifications.map((notification) => ({
+        id: notification.id,
+      })),
+    });
+  }
   await LocalNotifications.removeAllDeliveredNotifications();
 
   const notifications: Parameters<
@@ -170,4 +209,55 @@ export const syncMobileNotifications = async (
 
   await LocalNotifications.schedule({ notifications });
   return { scheduled: notifications.length, permission };
+};
+
+export const syncReengagementReminder = async (
+  scope: string,
+  referenceDate = new Date(),
+) => {
+  if (!isNativeNotificationsSupported()) {
+    return { scheduled: 0, permission: "unsupported" as const };
+  }
+
+  const permission = await checkMobileNotificationPermission();
+  if (permission !== "granted") {
+    return { scheduled: 0, permission };
+  }
+
+  const reminderId = getReengagementNotificationId(scope);
+  const reminderAt = new Date(referenceDate.getTime() + REENGAGEMENT_DELAY_MS);
+  const message = pickReengagementMessage(scope, referenceDate);
+
+  try {
+    await LocalNotifications.cancel({ notifications: [{ id: reminderId }] });
+  } catch {
+    // Ignore cancellation issues and overwrite with a fresh schedule.
+  }
+
+  await LocalNotifications.schedule({
+    notifications: [
+      {
+        id: reminderId,
+        title: message.title,
+        body: message.body,
+        schedule: { at: reminderAt },
+      },
+    ],
+  });
+
+  return { scheduled: 1, permission };
+};
+
+export const clearReengagementReminder = async (scope: string) => {
+  if (!isNativeNotificationsSupported()) {
+    return;
+  }
+
+  try {
+    await LocalNotifications.cancel({
+      notifications: [{ id: getReengagementNotificationId(scope) }],
+    });
+  } catch {
+    // Ignore cancellation failures.
+  }
 };

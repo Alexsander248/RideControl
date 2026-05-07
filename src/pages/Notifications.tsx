@@ -6,6 +6,7 @@ import { parseLocalDate } from "../lib/date";
 import { getRecurringExpenseAlerts } from "../lib/recurringExpenses";
 import {
   checkMobileNotificationPermission,
+  syncReengagementReminder,
   requestMobileNotificationPermission,
   syncMobileNotifications,
   type MobileNotificationPermission,
@@ -22,6 +23,7 @@ export const Notifications: React.FC = () => {
     expenses,
     subscriptions,
     notificationSettings,
+    cloudUserEmail,
     updateNotificationSettings,
   } = useApp();
   const [mobilePermission, setMobilePermission] =
@@ -80,6 +82,11 @@ export const Notifications: React.FC = () => {
           },
           new Date(),
         );
+
+        await syncReengagementReminder(
+          cloudUserEmail?.trim().toLowerCase() || "guest",
+          new Date(),
+        );
       }
     } finally {
       setIsRequestingMobilePermission(false);
@@ -135,7 +142,8 @@ export const Notifications: React.FC = () => {
 
         <p className="text-xs text-gray-400 mt-4 leading-relaxed">
           Quando a permissão estiver ativa, o app agenda lembretes um dia antes
-          dos gastos recorrentes e no prazo configurado para tarefas.
+          dos gastos recorrentes, no prazo configurado para tarefas e também um
+          lembrete de retorno após 24h sem abrir o app.
         </p>
       </div>
 

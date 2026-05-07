@@ -11,6 +11,7 @@ import { Capacitor } from "@capacitor/core";
 import type {
   Bike,
   Expense,
+  ExpenseStatus,
   RecurringSubscription,
   MaintenanceTask,
   AppState,
@@ -28,6 +29,7 @@ import {
 import {
   getMissingRecurringExpenses,
   getRecurringExpenseAlerts,
+  getRecurringMonthKey,
   shouldSendRecurringNotification,
 } from "../lib/recurringExpenses";
 import { syncMobileNotifications } from "../lib/mobileNotifications";
@@ -38,6 +40,7 @@ interface AppContextType extends AppState {
   isTutorialWelcomeOpen: boolean;
   isTutorialWelcomeSkippable: boolean;
   isCloudReady: boolean;
+  isCloudHydrating: boolean;
   isCloudConfigured: boolean;
   isCloudAuthenticated: boolean;
   cloudUserEmail: string | null;
@@ -554,7 +557,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     const saved = localStorage.getItem(getStorageKey(userId));
 
     if (!saved) {
-      return createDefaultState();
+      // Use timestamp 0 for empty local state so remote always wins during merge
+      return normalizeState(null, defaultProfile, installYear, 0);
     }
 
     try {
@@ -565,7 +569,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         nowTs(),
       );
     } catch {
-      return createDefaultState();
+      // Use timestamp 0 for invalid local state so remote always wins during merge
+      return normalizeState(null, defaultProfile, installYear, 0);
     }
   };
 
@@ -1677,6 +1682,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         isTutorialWelcomeOpen,
         isTutorialWelcomeSkippable,
         isCloudReady,
+        isCloudHydrating,
         isCloudConfigured: isSupabaseConfigured,
         isCloudAuthenticated: isAuthenticated,
         cloudUserEmail: activeUserEmail,

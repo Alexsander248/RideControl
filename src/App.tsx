@@ -13,7 +13,7 @@ import {
   useNavigate,
   useParams,
 } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { motion } from "motion/react";
 import { App as CapacitorApp } from "@capacitor/app";
 import { AppProvider, useApp } from "./context/AppContext";
@@ -38,6 +38,10 @@ import { Profile } from "./pages/Profile";
 import { PersonalInfo } from "./pages/PersonalInfo.tsx";
 import { Notifications } from "./pages/Notifications";
 import { supabase } from "./lib/supabase";
+import {
+  clearReengagementReminder,
+  syncReengagementReminder,
+} from "./lib/mobileNotifications";
 
 function LegacyBikeRedirect() {
   const { id } = useParams();
@@ -100,7 +104,12 @@ function AuthCallback() {
 }
 
 function RequireAuth() {
-  const { isCloudAuthenticated, isCloudReady, isProfileComplete } = useApp();
+  const {
+    isCloudAuthenticated,
+    isCloudReady,
+    isCloudHydrating,
+    isProfileComplete,
+  } = useApp();
   const location = useLocation();
 
   if (!isCloudReady) {
@@ -119,6 +128,18 @@ function RequireAuth() {
     return <Navigate to="/auth" replace state={{ from: location }} />;
   }
 
+  if (isCloudHydrating) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-6">
+        <div className="bg-white border border-gray-100 rounded-3xl px-6 py-5 shadow-sm text-center">
+          <p className="text-sm font-semibold text-gray-700">
+            Sincronizando dados...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const isProfileSetupRoute = location.pathname === "/perfil/informacoes";
 
   if (!isProfileComplete && !isProfileSetupRoute) {
@@ -135,7 +156,39 @@ function RequireAuth() {
 }
 
 function AppContent() {
-  const { isTutorialActive } = useApp();
+  const {
+    isTutorialActive,
+    isCloudAuthenticated,
+    isCloudReady,
+    isCloudHydrating,
+    cloudUserEmail,
+  } = useApp();
+  const reminderScopeRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isCloudReady || isCloudHydrating) {
+      return;
+    }
+
+    const nextReminderScope = isCloudAuthenticated
+      ? cloudUserEmail?.trim().toLowerCase() || "guest"
+      : null;
+
+    if (
+      reminderScopeRef.current &&
+      reminderScopeRef.current !== nextReminderScope
+    ) {
+      void clearReengagementReminder(reminderScopeRef.current);
+    }
+
+    reminderScopeRef.current = nextReminderScope;
+
+    if (!nextReminderScope) {
+      return;
+    }
+
+    void syncReengagementReminder(nextReminderScope, new Date());
+  }, [cloudUserEmail, isCloudAuthenticated, isCloudHydrating, isCloudReady]);
 
   useEffect(() => {
     const handleUrlOpen = (event: { url: string }) => {
@@ -157,11 +210,28 @@ function AppContent() {
     };
 
     const listener = CapacitorApp.addListener("appUrlOpen", handleUrlOpen);
+    const appStateListener = CapacitorApp.addListener(
+      "appStateChange",
+      (state) => {
+        if (!state.isActive) {
+          return;
+        }
+
+        const reminderScope = reminderScopeRef.current;
+
+        if (isCloudAuthenticated && reminderScope) {
+          void syncReengagementReminder(reminderScope, new Date());
+        }
+      },
+    );
 
     return () => {
       void listener.then((handle) => handle.remove()).catch(() => undefined);
+      void appStateListener
+        .then((handle) => handle.remove())
+        .catch(() => undefined);
     };
-  }, []);
+  }, [cloudUserEmail, isCloudAuthenticated]);
 
   return (
     <>
