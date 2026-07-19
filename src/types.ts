@@ -27,6 +27,7 @@ export interface Expense {
   liters?: number;
   fullTank?: boolean;
   notes?: string;
+  receiptImageUrl?: string;
   status?: ExpenseStatus;
   subscriptionId?: string;
   dueDate?: string;

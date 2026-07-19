@@ -4,18 +4,22 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import {
   ArrowRight,
-  ShieldCheck,
-  Sparkles,
-  CircleCheck,
-  Database,
-  Lock,
-  MailCheck,
   AlertTriangle,
   Eye,
   EyeOff,
+  KeyRound,
+  Loader2,
+  Lock,
+  MailCheck,
+  Phone,
+  RotateCw,
+  Send,
+  ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 
 import { useApp } from "../context/AppContext";
+import { getAuthRedirectUrl, supabase } from "../lib/supabase";
 
 const PASSWORD_MIN_LENGTH = 6;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -23,6 +27,7 @@ const SAVED_ACCOUNTS_KEY = "ridecontrol_saved_accounts";
 const DEFAULT_SIGNUP_COOLDOWN_SECONDS = 60;
 
 type AuthTab = "login" | "signup";
+type LoginMethod = "email" | "phone";
 
 const isRateLimitError = (rawError: string) => {
   const normalized = rawError.toLowerCase();
@@ -75,6 +80,10 @@ const mapAuthError = (rawError: string, mode: AuthTab) => {
     return `A senha precisa ter no mínimo ${PASSWORD_MIN_LENGTH} caracteres.`;
   }
 
+  if (normalized.includes("phone") && normalized.includes("invalid")) {
+    return "Informe um número de celular válido.";
+  }
+
   if (isRateLimitError(rawError)) {
     return "Muitas tentativas em sequência. Aguarde um momento e tente novamente.";
   }
@@ -107,6 +116,28 @@ const persistSavedAccounts = (accounts: string[]) => {
   localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(accounts));
 };
 
+const getRecoveryRedirectUrl = () => {
+  const base = getAuthRedirectUrl();
+  if (!base) return "";
+  return `${base}${base.includes("?") ? "&" : "?"}mode=recovery`;
+};
+
+const normalizePhoneNumber = (value: string) => {
+  const digits = value.replace(/\D/g, "");
+
+  if (!digits) return "";
+
+  if (value.trim().startsWith("+")) {
+    return `+${digits}`;
+  }
+
+  if (digits.startsWith("55")) {
+    return `+${digits}`;
+  }
+
+  return `+55${digits}`;
+};
+
 export const Auth: React.FC = () => {
   const {
     isCloudReady,
@@ -118,12 +149,20 @@ export const Auth: React.FC = () => {
     signUpCloud,
     signInDev,
   } = useApp();
+
   const navigate = useNavigate();
   const location = useLocation();
+
   const [activeTab, setActiveTab] = useState<AuthTab>("login");
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>("email");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [phoneOtp, setPhoneOtp] = useState("");
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
+  const [recoveryPassword, setRecoveryPassword] = useState("");
+  const [recoveryPasswordConfirm, setRecoveryPasswordConfirm] = useState("");
   const [devPassword, setDevPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -134,6 +173,8 @@ export const Auth: React.FC = () => {
   const [verificationSent, setVerificationSent] = useState(false);
   const [messageType, setMessageType] = useState<"info" | "error">("info");
   const [signupCooldownUntil, setSignupCooldownUntil] = useState(0);
+  const [isRecoveryMode, setIsRecoveryMode] = useState(false);
+
   const isSignUp = activeTab === "signup";
   const isDevMode = import.meta.env.DEV;
   const signupCooldownSeconds = Math.max(
@@ -148,6 +189,24 @@ export const Auth: React.FC = () => {
     fromPath === "/auth" || fromPath === "/perfil/informacoes" ? "/" : fromPath;
 
   useEffect(() => {
+    const mode = new URLSearchParams(location.search).get("mode");
+    setIsRecoveryMode(mode === "recovery");
+  }, [location.search]);
+
+  useEffect(() => {
+    if (isRecoveryMode) {
+      setActiveTab("login");
+      setLoginMethod("email");
+      setMessageType("info");
+      setMessage("Redefina sua senha para concluir o acesso à conta recuperada.");
+      return;
+    }
+
+    setRecoveryPassword("");
+    setRecoveryPasswordConfirm("");
+  }, [isRecoveryMode]);
+
+  useEffect(() => {
     const accounts = getSavedAccounts();
     setSavedAccounts(accounts);
 
@@ -158,18 +217,16 @@ export const Auth: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (isCloudAuthenticated && isCloudReady) {
+    if (isCloudAuthenticated && isCloudReady && !isRecoveryMode) {
       navigate(postLoginPath, { replace: true });
     }
-  }, [isCloudAuthenticated, isCloudReady, navigate, postLoginPath]);
+  }, [isCloudAuthenticated, isCloudReady, isRecoveryMode, navigate, postLoginPath]);
 
   useEffect(() => {
     if (signupCooldownSeconds <= 0) return;
 
     const intervalId = window.setInterval(() => {
-      setSignupCooldownUntil((current) =>
-        current <= Date.now() ? 0 : current,
-      );
+      setSignupCooldownUntil((current) => (current <= Date.now() ? 0 : current));
     }, 1000);
 
     return () => {
@@ -177,7 +234,7 @@ export const Auth: React.FC = () => {
     };
   }, [signupCooldownSeconds]);
 
-  const validateForm = () => {
+  const validateEmailForm = () => {
     if (!email.trim() || !password.trim()) {
       setMessageType("error");
       setMessage("Informe email e senha.");
@@ -192,7 +249,7 @@ export const Auth: React.FC = () => {
 
     if (isSignUp && password.length < PASSWORD_MIN_LENGTH) {
       setMessageType("error");
-      setMessage("A senha deve ter pelo menos 6 caracteres.");
+      setMessage(`A senha deve ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres.`);
       return false;
     }
 
@@ -210,16 +267,14 @@ export const Auth: React.FC = () => {
 
     if (isSignUp && signupCooldownSeconds > 0) {
       setMessageType("error");
-      setMessage(
-        `Aguarde ${signupCooldownSeconds}s para tentar criar a conta novamente.`,
-      );
+      setMessage(`Aguarde ${signupCooldownSeconds}s para tentar criar a conta novamente.`);
       return false;
     }
 
     return true;
   };
 
-  const handleSubmit = async () => {
+  const handleEmailAuth = async () => {
     if (!isCloudConfigured) {
       setMessageType("error");
       setMessage(
@@ -228,7 +283,7 @@ export const Auth: React.FC = () => {
       return;
     }
 
-    if (!validateForm()) return;
+    if (!validateEmailForm()) return;
 
     setLoading(true);
     setMessage(null);
@@ -263,9 +318,7 @@ export const Auth: React.FC = () => {
       setConfirmPassword("");
       setVerificationSent(true);
       setMessageType("info");
-      setMessage(
-        "Conta criada. Verifique seu email para confirmar e depois entre no app.",
-      );
+      setMessage("Conta criada. Verifique seu email para confirmar e depois entre no app.");
       return;
     }
 
@@ -279,10 +332,7 @@ export const Auth: React.FC = () => {
 
         if (shouldSave) {
           setSavedAccounts((prev) => {
-            const next = [
-              normalizedEmail,
-              ...prev.filter((item) => item !== normalizedEmail),
-            ].slice(0, 5);
+            const next = [normalizedEmail, ...prev.filter((item) => item !== normalizedEmail)].slice(0, 5);
             persistSavedAccounts(next);
             return next;
           });
@@ -295,6 +345,183 @@ export const Auth: React.FC = () => {
     setMessage("Login concluído. Sincronizando dados...");
   };
 
+  const handleGoogleSignIn = async () => {
+    if (!isCloudConfigured || !supabase) {
+      setMessageType("error");
+      setMessage("O Supabase não está configurado neste ambiente.");
+      return;
+    }
+
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const redirectTo = getAuthRedirectUrl() || undefined;
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          ...(redirectTo ? { redirectTo } : {}),
+        },
+      });
+
+      if (error) throw error;
+      if (data.url) window.location.assign(data.url);
+    } catch {
+      setMessageType("error");
+      setMessage("Não foi possível iniciar com o Google no momento.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendPasswordReset = async () => {
+    if (!EMAIL_REGEX.test(email.trim())) {
+      setMessageType("error");
+      setMessage("Informe um email válido para recuperar a senha.");
+      return;
+    }
+
+    if (!isCloudConfigured || !supabase) {
+      setMessageType("error");
+      setMessage("O Supabase não está configurado neste ambiente.");
+      return;
+    }
+
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const redirectTo = getRecoveryRedirectUrl() || undefined;
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        ...(redirectTo ? { redirectTo } : {}),
+      });
+
+      if (error) throw error;
+
+      setMessageType("info");
+      setMessage("Enviamos um link para redefinir a senha no email cadastrado.");
+    } catch {
+      setMessageType("error");
+      setMessage("Não foi possível enviar a recuperação de senha.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePhoneAuth = async () => {
+    if (!isCloudConfigured || !supabase) {
+      setMessageType("error");
+      setMessage("O Supabase não está configurado neste ambiente.");
+      return;
+    }
+
+    const normalizedPhone = normalizePhoneNumber(phoneNumber);
+    if (!normalizedPhone) {
+      setMessageType("error");
+      setMessage("Informe um número de celular válido.");
+      return;
+    }
+
+    if (phoneOtpSent && !phoneOtp.trim()) {
+      setMessageType("error");
+      setMessage("Informe o código enviado por SMS.");
+      return;
+    }
+
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      if (!phoneOtpSent) {
+        const { error } = await supabase.auth.signInWithOtp({ phone: normalizedPhone });
+        if (error) throw error;
+
+        setPhoneOtpSent(true);
+        setMessageType("info");
+        setMessage("Enviamos um código por SMS para o seu celular.");
+      } else {
+        const { error } = await supabase.auth.verifyOtp({
+          phone: normalizedPhone,
+          token: phoneOtp.trim(),
+          type: "sms",
+        });
+
+        if (error) throw error;
+
+        setMessageType("info");
+        setMessage("Login por celular concluído.");
+      }
+    } catch {
+      setMessageType("error");
+      setMessage("Não foi possível autenticar com o celular agora.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRecoverySubmit = async () => {
+    if (recoveryPassword.length < PASSWORD_MIN_LENGTH) {
+      setMessageType("error");
+      setMessage(`A nova senha precisa ter no mínimo ${PASSWORD_MIN_LENGTH} caracteres.`);
+      return;
+    }
+
+    if (recoveryPassword !== recoveryPasswordConfirm) {
+      setMessageType("error");
+      setMessage("As senhas não coincidem.");
+      return;
+    }
+
+    if (!isCloudConfigured || !supabase) {
+      setMessageType("error");
+      setMessage("O Supabase não está configurado neste ambiente.");
+      return;
+    }
+
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const { error } = await supabase.auth.updateUser({ password: recoveryPassword });
+      if (error) throw error;
+
+      setMessageType("info");
+      setMessage("Senha atualizada. Entrando no app...");
+      navigate("/", { replace: true });
+    } catch {
+      setMessageType("error");
+      setMessage("Não foi possível atualizar a senha agora.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePrimaryAction = () => {
+    if (isRecoveryMode) {
+      void handleRecoverySubmit();
+      return;
+    }
+
+    if (activeTab === "login" && loginMethod === "phone") {
+      void handlePhoneAuth();
+      return;
+    }
+
+    void handleEmailAuth();
+  };
+
+  const mainButtonLabel = () => {
+    if (loading) return "Aguarde...";
+    if (isRecoveryMode) return "Atualizar senha";
+    if (activeTab === "login" && loginMethod === "phone") {
+      return phoneOtpSent ? "Verificar código" : "Enviar código";
+    }
+    if (isSignUp && signupCooldownSeconds > 0) {
+      return `Aguarde ${signupCooldownSeconds}s...`;
+    }
+    return isSignUp ? "Criar conta" : "Entrar e sincronizar";
+  };
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.16),transparent_34%),linear-gradient(180deg,#f8fbff_0%,#eef4ff_100%)] px-6 py-8 flex items-center justify-center">
       <motion.div
@@ -303,154 +530,273 @@ export const Auth: React.FC = () => {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.35, ease: "easeOut" }}
       >
-        {/* <div className="mb-6 flex items-center gap-3 justify-center">
-          <div className="w-12 h-12 rounded-2xl bg-blue-500 text-white flex items-center justify-center shadow-lg shadow-blue-200">
-            <ShieldCheck size={24} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-black tracking-tight text-gray-900">
-              RideControl
-            </h1>
-            <p className="text-xs font-bold uppercase tracking-[0.24em] text-gray-400">
-              Acesso seguro
-            </p>
-          </div>
-        </div> */}
-
         <div className="bg-white/95 backdrop-blur rounded-[36px] border border-white shadow-[0_24px_60px_rgba(15,23,42,0.12)] overflow-hidden">
           <div className="px-7 pt-8 pb-6 bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500 text-white relative overflow-hidden">
             <div className="absolute -right-8 -top-8 w-28 h-28 rounded-full bg-white/10" />
             <div className="absolute -left-6 bottom-0 w-24 h-24 rounded-full bg-white/10" />
             <div className="relative z-10 flex items-center gap-2 mb-4 text-white/90 text-xs font-black uppercase tracking-[0.22em]">
               <Sparkles size={14} />
-              {isSignUp ? "Cadastro" : "Login"}
+              {isRecoveryMode ? "Recuperação" : isSignUp ? "Cadastro" : "Login"}
             </div>
             <h2 className="text-3xl font-black leading-tight max-w-[12ch]">
-              {isSignUp ? "Crie sua conta" : "Entre para liberar o app"}
+              {isRecoveryMode
+                ? "Redefina sua senha"
+                : isSignUp
+                ? "Crie sua conta"
+                : "Entre para liberar o app"}
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-white/90 max-w-[28ch]">
-              {isSignUp
+              {isRecoveryMode
+                ? "Escolha uma nova senha para continuar usando sua conta."
+                : isSignUp
                 ? "Crie seu acesso para sincronizar seus dados entre dispositivos com segurança."
                 : "Seus dados ficam sincronizados em nuvem e disponíveis em qualquer aparelho quando você entra com sua conta."}
             </p>
           </div>
 
           <div className="p-6 space-y-5">
-            {verificationSent && activeTab === "login" && (
+            {verificationSent && activeTab === "login" && !isRecoveryMode && (
               <div className="rounded-3xl border border-emerald-100 bg-emerald-50 px-4 py-4 text-emerald-900 shadow-sm">
                 <div className="flex items-start gap-3">
                   <div className="w-9 h-9 rounded-2xl bg-white flex items-center justify-center text-emerald-600 shrink-0">
                     <MailCheck size={18} />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-black mb-1">
-                      Conta criada com sucesso
-                    </p>
+                    <p className="text-sm font-black mb-1">Conta criada com sucesso</p>
                     <p className="text-sm leading-relaxed text-emerald-900/80">
-                      Confirme o email enviado e depois faça login aqui para
-                      sincronizar seus dados.
+                      Confirme o email enviado e depois faça login aqui para sincronizar seus dados.
                     </p>
                   </div>
                 </div>
               </div>
             )}
 
-            <div className="grid grid-cols-2 rounded-2xl bg-gray-100 p-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab("login");
-                  setMessage(null);
-                }}
-                className={`h-11 rounded-2xl text-sm font-black transition-colors ${
-                  activeTab === "login"
-                    ? "bg-white text-blue-600 shadow-sm"
-                    : "text-gray-500"
-                }`}
-              >
-                Entrar
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab("signup");
-                  setMessage(null);
-                }}
-                className={`h-11 rounded-2xl text-sm font-black transition-colors ${
-                  activeTab === "signup"
-                    ? "bg-white text-blue-600 shadow-sm"
-                    : "text-gray-500"
-                }`}
-              >
-                Cadastro
-              </button>
-            </div>
+            {isRecoveryMode ? (
+              <div className="space-y-3 rounded-3xl border border-blue-100 bg-blue-50/60 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-2xl bg-white flex items-center justify-center text-blue-600 shrink-0">
+                    <KeyRound size={18} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-blue-950">Redefinir senha</p>
+                    <p className="text-xs text-blue-900/70 mt-1">
+                      Escolha uma nova senha para concluir a recuperação da sua conta.
+                    </p>
+                  </div>
+                </div>
 
-            <div className="space-y-3">
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
-                autoComplete="email"
-                className="w-full h-14 rounded-2xl bg-gray-50 border border-gray-100 px-4 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={recoveryPassword}
+                    onChange={(e) => setRecoveryPassword(e.target.value)}
+                    placeholder="Nova senha"
+                    autoComplete="new-password"
+                    className="w-full h-14 rounded-2xl bg-white border border-blue-100 px-4 pr-12 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute inset-y-0 right-0 h-14 px-4 text-gray-500 hover:text-gray-700"
+                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
 
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Senha"
-                  autoComplete={
-                    activeTab === "login" ? "current-password" : "new-password"
-                  }
-                  className="w-full h-14 rounded-2xl bg-gray-50 border border-gray-100 px-4 pr-12 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  className="absolute inset-y-0 right-0 h-14 px-4 text-gray-500 hover:text-gray-700"
-                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={recoveryPasswordConfirm}
+                    onChange={(e) => setRecoveryPasswordConfirm(e.target.value)}
+                    placeholder="Confirmar nova senha"
+                    autoComplete="new-password"
+                    className="w-full h-14 rounded-2xl bg-white border border-blue-100 px-4 pr-12 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    className="absolute inset-y-0 right-0 h-14 px-4 text-gray-500 hover:text-gray-700"
+                    aria-label={showConfirmPassword ? "Ocultar confirmação de senha" : "Mostrar confirmação de senha"}
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
-              {isSignUp && (
-                <>
-                  <div className="relative">
-                    <input
-                      type={showConfirmPassword ? "text" : "password"}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Confirmar senha"
-                      autoComplete="new-password"
-                      className="w-full h-14 rounded-2xl bg-gray-50 border border-gray-100 px-4 pr-12 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20"
-                    />
+            ) : (
+              <>
+                <div className="grid grid-cols-2 rounded-2xl bg-gray-100 p-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("login");
+                      setLoginMethod("email");
+                      setPhoneOtpSent(false);
+                      setPhoneOtp("");
+                      setMessage(null);
+                    }}
+                    className={`h-11 rounded-2xl text-sm font-black transition-colors ${
+                      activeTab === "login"
+                        ? "bg-white text-blue-600 shadow-sm"
+                        : "text-gray-500"
+                    }`}
+                  >
+                    Entrar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("signup");
+                      setMessage(null);
+                    }}
+                    className={`h-11 rounded-2xl text-sm font-black transition-colors ${
+                      activeTab === "signup"
+                        ? "bg-white text-blue-600 shadow-sm"
+                        : "text-gray-500"
+                    }`}
+                  >
+                    Cadastro
+                  </button>
+                </div>
+
+                {activeTab === "login" && (
+                  <div className="grid grid-cols-2 gap-2 rounded-2xl bg-gray-50 p-1 border border-gray-100">
                     <button
                       type="button"
-                      onClick={() => setShowConfirmPassword((prev) => !prev)}
-                      className="absolute inset-y-0 right-0 h-14 px-4 text-gray-500 hover:text-gray-700"
-                      aria-label={
-                        showConfirmPassword
-                          ? "Ocultar confirmação de senha"
-                          : "Mostrar confirmação de senha"
-                      }
+                      onClick={() => {
+                        setLoginMethod("email");
+                        setPhoneOtpSent(false);
+                        setPhoneOtp("");
+                      }}
+                      className={`h-11 rounded-2xl text-sm font-black transition-colors ${
+                        loginMethod === "email"
+                          ? "bg-white text-blue-600 shadow-sm"
+                          : "text-gray-500"
+                      }`}
                     >
-                      {showConfirmPassword ? (
-                        <EyeOff size={18} />
-                      ) : (
-                        <Eye size={18} />
-                      )}
+                      E-mail
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoginMethod("phone");
+                        setMessage(null);
+                      }}
+                      className={`h-11 rounded-2xl text-sm font-black transition-colors ${
+                        loginMethod === "phone"
+                          ? "bg-white text-blue-600 shadow-sm"
+                          : "text-gray-500"
+                      }`}
+                    >
+                      Celular
                     </button>
                   </div>
-                  <p className="text-[11px] text-gray-400 font-medium leading-relaxed">
-                    A senha precisa ter no mínimo {PASSWORD_MIN_LENGTH}{" "}
-                    caracteres.
-                  </p>
-                </>
-              )}
-            </div>
+                )}
+
+                {activeTab === "login" && loginMethod === "phone" ? (
+                  <div className="space-y-3 rounded-3xl border border-gray-100 bg-gray-50 p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-2xl bg-white flex items-center justify-center text-blue-600 shrink-0">
+                        <Phone size={18} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-gray-900">Acesso por celular</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Envie um código por SMS e confirme para entrar.
+                        </p>
+                      </div>
+                    </div>
+
+                    <input
+                      type="tel"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      placeholder="+55 11 99999-9999"
+                      autoComplete="tel"
+                      className="w-full h-14 rounded-2xl bg-white border border-gray-100 px-4 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+
+                    {phoneOtpSent && (
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={phoneOtp}
+                        onChange={(e) => setPhoneOtp(e.target.value)}
+                        placeholder="Código SMS"
+                        autoComplete="one-time-code"
+                        className="w-full h-14 rounded-2xl bg-white border border-gray-100 px-4 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20"
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Email"
+                      autoComplete="email"
+                      className="w-full h-14 rounded-2xl bg-gray-50 border border-gray-100 px-4 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Senha"
+                        autoComplete={activeTab === "login" ? "current-password" : "new-password"}
+                        className="w-full h-14 rounded-2xl bg-gray-50 border border-gray-100 px-4 pr-12 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((prev) => !prev)}
+                        className="absolute inset-y-0 right-0 h-14 px-4 text-gray-500 hover:text-gray-700"
+                        aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+
+                    {activeTab === "login" && (
+                      <button
+                        type="button"
+                        onClick={() => void handleSendPasswordReset()}
+                        className="text-left text-xs font-bold text-blue-600"
+                      >
+                        Esqueci minha senha
+                      </button>
+                    )}
+
+                    {isSignUp && (
+                      <>
+                        <div className="relative">
+                          <input
+                            type={showConfirmPassword ? "text" : "password"}
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            placeholder="Confirmar senha"
+                            autoComplete="new-password"
+                            className="w-full h-14 rounded-2xl bg-gray-50 border border-gray-100 px-4 pr-12 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500/20"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword((prev) => !prev)}
+                            className="absolute inset-y-0 right-0 h-14 px-4 text-gray-500 hover:text-gray-700"
+                            aria-label={showConfirmPassword ? "Ocultar confirmação de senha" : "Mostrar confirmação de senha"}
+                          >
+                            {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-gray-400 font-medium leading-relaxed">
+                          A senha precisa ter no mínimo {PASSWORD_MIN_LENGTH} caracteres.
+                        </p>
+                      </>
+                    )}
+                  </>
+                )}
+              </>
+            )}
 
             <button
               type="button"
@@ -459,25 +805,50 @@ export const Auth: React.FC = () => {
                 !isCloudConfigured ||
                 (isSignUp && signupCooldownSeconds > 0)
               }
-              onClick={() => void handleSubmit()}
+              onClick={handlePrimaryAction}
               className="w-full h-14 rounded-2xl bg-blue-600 text-white font-black flex items-center justify-center gap-2 shadow-lg shadow-blue-200 transition-transform active:scale-[0.99] disabled:opacity-60"
             >
               {loading ? (
-                "Aguarde..."
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  Aguarde...
+                </>
+              ) : isRecoveryMode ? (
+                <>
+                  <RotateCw size={18} />
+                  Atualizar senha
+                </>
+              ) : activeTab === "login" && loginMethod === "phone" ? (
+                <>
+                  {phoneOtpSent ? <KeyRound size={18} /> : <Send size={18} />}
+                  {phoneOtpSent ? "Verificar código" : "Enviar código"}
+                </>
               ) : isSignUp && signupCooldownSeconds > 0 ? (
                 `Aguarde ${signupCooldownSeconds}s...`
-              ) : !isSignUp ? (
-                <>
-                  <Lock size={18} />
-                  Entrar e sincronizar
-                </>
-              ) : (
+              ) : isSignUp ? (
                 <>
                   <ArrowRight size={18} />
                   Criar conta
                 </>
+              ) : (
+                <>
+                  <Lock size={18} />
+                  Entrar e sincronizar
+                </>
               )}
             </button>
+
+            {!isRecoveryMode && (
+              <button
+                type="button"
+                onClick={() => void handleGoogleSignIn()}
+                disabled={loading || !isCloudConfigured}
+                className="w-full h-14 rounded-2xl bg-white border border-gray-100 text-gray-800 font-black flex items-center justify-center gap-2 shadow-sm disabled:opacity-60"
+              >
+                <Sparkles size={18} className="text-blue-600" />
+                Continuar com Google
+              </button>
+            )}
 
             {isDevMode && (
               <div className="space-y-3 rounded-3xl border border-gray-100 bg-gray-50 p-4">
@@ -497,11 +868,7 @@ export const Auth: React.FC = () => {
                     type="button"
                     onClick={() => setShowDevPassword((prev) => !prev)}
                     className="absolute inset-y-0 right-0 h-14 px-4 text-gray-500 hover:text-gray-700"
-                    aria-label={
-                      showDevPassword
-                        ? "Ocultar senha dev"
-                        : "Mostrar senha dev"
-                    }
+                    aria-label={showDevPassword ? "Ocultar senha dev" : "Mostrar senha dev"}
                   >
                     {showDevPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
@@ -522,9 +889,7 @@ export const Auth: React.FC = () => {
                       }
 
                       setMessageType("info");
-                      setMessage(
-                        "Conta de dev ativa. Você já pode testar o app com dados locais.",
-                      );
+                      setMessage("Conta de dev ativa. Você já pode testar o app com dados locais.");
                     } catch {
                       setMessageType("error");
                       setMessage("Não foi possível ativar a conta de dev.");
@@ -561,43 +926,8 @@ export const Auth: React.FC = () => {
               </p>
             )}
 
-            <div className="grid grid-cols-1 gap-3 rounded-3xl bg-blue-50/70 p-4 border border-blue-100">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center text-blue-600 shrink-0">
-                  <Database size={16} />
-                </div>
-                <p className="text-sm font-medium text-blue-950/80 leading-relaxed">
-                  As informações são salvas localmente e também sincronizadas na
-                  nuvem quando você entra.
-                </p>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center text-blue-600 shrink-0">
-                  <CircleCheck size={16} />
-                </div>
-                <p className="text-sm font-medium text-blue-950/80 leading-relaxed">
-                  Ao trocar de aparelho, basta logar na mesma conta para
-                  restaurar os dados.
-                </p>
-              </div>
-            </div>
-
-            {!isCloudConfigured && (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-                <p className="text-xs font-black uppercase tracking-[0.2em] mb-1">
-                  Supabase ausente
-                </p>
-                <p className="text-xs font-medium leading-relaxed">
-                  A build publicada não encontrou as variáveis do Supabase. Sem
-                  isso, login, cadastro e sincronização não conseguem operar.
-                </p>
-              </div>
-            )}
-
             <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-[0.2em] text-gray-400">
-              <span>
-                {cloudSyncStatus === "syncing" ? "Sincronizando" : "Pronto"}
-              </span>
+              <span>{cloudSyncStatus === "syncing" ? "Sincronizando" : "Pronto"}</span>
               <span>RideControl Cloud</span>
             </div>
           </div>

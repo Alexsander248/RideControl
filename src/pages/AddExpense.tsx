@@ -3,15 +3,18 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import {
   ArrowLeft,
+  Camera,
   Save,
   Fuel,
   Wrench,
   Package,
   MoreHorizontal,
+  Trash2,
 } from "lucide-react";
 
 import { useApp } from "../context/AppContext";
 import { getTodayLocalIsoDate } from "../lib/date";
+import { getOptimizedImageDataUrl } from "../lib/image";
 import { cn } from "../lib/utils";
 import type { ExpenseCategory } from "../types";
 
@@ -59,10 +62,13 @@ export const AddExpense: React.FC = () => {
     liters: isTutorialMode ? 3 : 0,
     fullTank: isTutorialMode,
     notes: isTutorialMode ? "Abastecimento tutorial" : "",
+    receiptImageUrl: "",
   });
   const [amountInput, setAmountInput] = useState(
     isTutorialMode ? "R$ 25,00" : "",
   );
+  const [isProcessingReceiptImage, setIsProcessingReceiptImage] =
+    useState(false);
 
   const formatBrlCurrency = (value: number) =>
     new Intl.NumberFormat("pt-BR", {
@@ -86,6 +92,27 @@ export const AddExpense: React.FC = () => {
       ...prev,
       amount: nextAmount,
     }));
+  };
+
+  const handleReceiptImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsProcessingReceiptImage(true);
+      const optimizedReceiptImage = await getOptimizedImageDataUrl(file);
+      setFormData((prev) => ({
+        ...prev,
+        receiptImageUrl: optimizedReceiptImage,
+      }));
+    } catch (error) {
+      console.error("Erro ao processar imagem da nota fiscal:", error);
+      alert("Não foi possível carregar a imagem da nota fiscal.");
+    } finally {
+      setIsProcessingReceiptImage(false);
+    }
   };
 
   const categories = [
@@ -142,6 +169,7 @@ export const AddExpense: React.FC = () => {
       ...formData,
       liters: formData.type === "Combustivel" ? formData.liters : undefined,
       fullTank: formData.type === "Combustivel" ? formData.fullTank : undefined,
+      receiptImageUrl: formData.receiptImageUrl.trim() || undefined,
     };
 
     addExpense(payload as any);
@@ -381,6 +409,67 @@ export const AddExpense: React.FC = () => {
                   setFormData({ ...formData, notes: e.target.value })
                 }
               />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
+                Nota fiscal / imagem (opcional)
+              </label>
+              <div className="rounded-[28px] border border-dashed border-gray-200 bg-gray-50 p-4">
+                {formData.receiptImageUrl ? (
+                  <div className="space-y-3">
+                    <img
+                      src={formData.receiptImageUrl}
+                      alt="Pré-visualização da nota fiscal"
+                      className="w-full h-56 object-cover rounded-2xl border border-gray-100"
+                    />
+                    <div className="flex gap-3">
+                      <label className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 font-bold text-blue-700 border border-blue-100 shadow-sm cursor-pointer">
+                        <Camera size={18} />
+                        Trocar imagem
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={handleReceiptImageUpload}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            receiptImageUrl: "",
+                          }))
+                        }
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 font-bold text-gray-700 border border-gray-200 shadow-sm"
+                      >
+                        <Trash2 size={18} />
+                        Remover
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="flex min-h-40 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-8 text-center">
+                    <Camera size={28} className="text-gray-400" />
+                    <span className="text-sm font-bold text-gray-700">
+                      Toque para tirar foto ou escolher uma imagem
+                    </span>
+                    <span className="text-[11px] font-medium text-gray-400">
+                      A nota fiscal ficará salva junto com o gasto.
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={handleReceiptImageUpload}
+                      disabled={isProcessingReceiptImage}
+                    />
+                  </label>
+                )}
+              </div>
             </div>
           </div>
         </div>

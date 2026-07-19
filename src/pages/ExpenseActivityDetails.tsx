@@ -1,10 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
-import { ArrowLeft, Save, Trash2, CheckCircle2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Save,
+  Trash2,
+  CheckCircle2,
+  Camera,
+} from "lucide-react";
 
 import { useApp } from "../context/AppContext";
 import { getTodayLocalIsoDate, parseLocalDate } from "../lib/date";
+import { getOptimizedImageDataUrl } from "../lib/image";
 import type { ExpenseCategory } from "../types";
 
 type EditFormData = {
@@ -16,6 +23,7 @@ type EditFormData = {
   liters: number;
   fullTank: boolean;
   notes: string;
+  receiptImageUrl: string;
 };
 
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
@@ -49,6 +57,7 @@ export const ExpenseActivityDetails: React.FC = () => {
         liters: expense.liters || 0,
         fullTank: expense.fullTank ?? false,
         notes: expense.notes || "",
+        receiptImageUrl: expense.receiptImageUrl || "",
       };
     }
     return {
@@ -60,6 +69,7 @@ export const ExpenseActivityDetails: React.FC = () => {
       liters: 0,
       fullTank: false,
       notes: "",
+      receiptImageUrl: "",
     };
   });
 
@@ -77,6 +87,7 @@ export const ExpenseActivityDetails: React.FC = () => {
       liters: expense.liters || 0,
       fullTank: expense.fullTank ?? false,
       notes: expense.notes || "",
+      receiptImageUrl: expense.receiptImageUrl || "",
     });
     setError("");
   }, [expense]);
@@ -104,6 +115,24 @@ export const ExpenseActivityDetails: React.FC = () => {
     bikes.find((bike) => bike.id === expense.bikeId)?.name || "-";
 
   const isPendingPayment = expense.status === "Pendente";
+
+  const handleReceiptImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const optimizedReceiptImage = await getOptimizedImageDataUrl(file);
+      setFormData((prev) => ({
+        ...prev,
+        receiptImageUrl: optimizedReceiptImage,
+      }));
+    } catch (error) {
+      console.error("Erro ao processar imagem da nota fiscal:", error);
+      setError("Não foi possível carregar a imagem da nota fiscal.");
+    }
+  };
 
   const handleConfirmPayment = () => {
     updateExpense({
@@ -140,6 +169,7 @@ export const ExpenseActivityDetails: React.FC = () => {
         fullTank:
           formData.type === "Combustivel" ? formData.fullTank : undefined,
         notes: formData.notes.trim() || undefined,
+        receiptImageUrl: formData.receiptImageUrl.trim() || undefined,
       });
       navigate(-1);
     } catch (err) {
@@ -435,6 +465,78 @@ export const ExpenseActivityDetails: React.FC = () => {
               </div>
             )}
           </div>
+
+          <div>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">
+              Nota fiscal
+            </p>
+            {isEditing ? (
+              <div className="space-y-3 rounded-[28px] border border-dashed border-gray-200 bg-gray-50 p-4">
+                {formData.receiptImageUrl ? (
+                  <div className="space-y-3">
+                    <img
+                      src={formData.receiptImageUrl}
+                      alt="Pré-visualização da nota fiscal"
+                      className="w-full h-56 object-cover rounded-2xl border border-gray-100"
+                    />
+                    <div className="flex gap-3">
+                      <label className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 font-bold text-blue-700 border border-blue-100 shadow-sm cursor-pointer">
+                        <Camera size={18} />
+                        Trocar imagem
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={handleReceiptImageUpload}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            receiptImageUrl: "",
+                          }))
+                        }
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 font-bold text-gray-700 border border-gray-200 shadow-sm"
+                      >
+                        <Trash2 size={18} />
+                        Remover
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="flex min-h-40 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-8 text-center">
+                    <Camera size={28} className="text-gray-400" />
+                    <span className="text-sm font-bold text-gray-700">
+                      Toque para tirar foto ou escolher uma imagem
+                    </span>
+                    <span className="text-[11px] font-medium text-gray-400">
+                      A nota fiscal ficará salva junto com o gasto.
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={handleReceiptImageUpload}
+                    />
+                  </label>
+                )}
+              </div>
+            ) : expense.receiptImageUrl ? (
+              <img
+                src={expense.receiptImageUrl}
+                alt="Nota fiscal do gasto"
+                className="w-full h-56 object-cover rounded-2xl border border-gray-100"
+              />
+            ) : (
+              <div className="bg-gray-50 rounded-2xl px-5 py-4 font-bold text-sm text-gray-500">
+                Nenhuma nota fiscal anexada
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -464,6 +566,7 @@ export const ExpenseActivityDetails: React.FC = () => {
                       liters: expense.liters || 0,
                       fullTank: expense.fullTank ?? false,
                       notes: expense.notes || "",
+                      receiptImageUrl: expense.receiptImageUrl || "",
                     });
                   }
                 }}

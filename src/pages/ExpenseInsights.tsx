@@ -267,7 +267,16 @@ export const ExpenseInsights: React.FC = () => {
     return () => clearTimeout(t);
   }, [monthlyData.length]);
 
-  const totalSpent = filteredExpenses.reduce(
+  const expensesForSelectedBike = selectedBikeId
+    ? sourceExpenses.filter((expense) => expense.bikeId === selectedBikeId)
+    : sourceExpenses;
+
+  const totalSpentAllTime = expensesForSelectedBike.reduce(
+    (sum, expense) => sum + expense.amount,
+    0,
+  );
+
+  const totalSpentInPeriod = filteredExpenses.reduce(
     (sum, expense) => sum + expense.amount,
     0,
   );
@@ -381,7 +390,7 @@ export const ExpenseInsights: React.FC = () => {
       ""
     : "";
 
-  const costPerKm = totalKm > 0 ? totalSpent / totalKm : 0;
+  const costPerKm = totalKm > 0 ? totalSpentInPeriod / totalKm : 0;
   const consumptionKmPerLiter =
     fuelConsumptionData.totalFuelLiters > 0
       ? fuelConsumptionData.fuelDistanceKm / fuelConsumptionData.totalFuelLiters
@@ -406,7 +415,7 @@ export const ExpenseInsights: React.FC = () => {
     validFullTankCyclesCount > 0 &&
     fuelConsumptionData.fuelDistanceKm > 0 &&
     fuelConsumptionData.totalFuelLiters > 0;
-  const avgMonthly = totalSpent / 12;
+  const avgMonthly = totalSpentAllTime / 12;
 
   const COLORS = {
     Combustivel: "#F97316",
@@ -420,7 +429,7 @@ export const ExpenseInsights: React.FC = () => {
     total: {
       title: "Total gasto",
       description:
-        "Soma de todos os gastos registrados no período selecionado. Inclui combustível, manutenção, peças, equipamentos e outros.",
+        "Soma de todos os gastos registrados para a motocicleta selecionada. Inclui combustível, manutenção, peças, equipamentos e outros.",
     },
     media: {
       title: "Média mensal",
@@ -505,7 +514,7 @@ export const ExpenseInsights: React.FC = () => {
             Total gasto
           </p>
           <p className="text-xl font-bold">
-            {formatCompactCurrency(totalSpent)}
+            {formatCompactCurrency(totalSpentAllTime)}
           </p>
         </button>
 
@@ -595,7 +604,7 @@ export const ExpenseInsights: React.FC = () => {
               Total
             </p>
             <p className="text-xl font-black max-w-[110px] text-center break-words">
-              {formatCompactCurrency(totalSpent)}
+              {formatCompactCurrency(totalSpentInPeriod)}
             </p>
           </div>
         </div>
@@ -615,8 +624,8 @@ export const ExpenseInsights: React.FC = () => {
               <div className="text-right">
                 <p className="font-bold">{formatCompactCurrency(item.value)}</p>
                 <p className="text-xs text-gray-400 font-medium">
-                  {totalSpent > 0
-                    ? ((item.value / totalSpent) * 100).toFixed(1)
+                  {totalSpentInPeriod > 0
+                    ? ((item.value / totalSpentInPeriod) * 100).toFixed(1)
                     : "0.0"}
                   %
                 </p>
@@ -914,7 +923,7 @@ export const ExpenseInsights: React.FC = () => {
                         Total gasto
                       </p>
                       <p className="text-lg font-black text-gray-900">
-                        {formatCompactCurrency(totalSpent)}
+                        {formatCompactCurrency(totalSpentInPeriod)}
                       </p>
                     </div>
 
@@ -952,7 +961,7 @@ export const ExpenseInsights: React.FC = () => {
                     </p>
                     {hasEnoughCostData ? (
                       <p className="text-sm font-semibold text-orange-900">
-                        {formatCompactCurrency(totalSpent)} ÷{" "}
+                        {formatCompactCurrency(totalSpentInPeriod)} ÷{" "}
                         {totalKm.toLocaleString("pt-BR", {
                           maximumFractionDigits: 1,
                         })}{" "}
