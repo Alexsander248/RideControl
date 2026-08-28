@@ -1,304 +1,209 @@
 # RideControl
 
-RideControl é um app web/PWA para controle de motos. Ele foi pensado para uso no celular e organiza em um só lugar garagem, gastos, tarefas, perfil e diagnóstico.
+> Gestão inteligente para motociclistas: garagem, despesas, manutenção e indicadores em um só lugar.
 
-## O que o app faz?
+O RideControl é um aplicativo multiplataforma desenvolvido para organizar a rotina de quem possui uma ou mais motocicletas. O projeto combina uma experiência mobile-first na web, publicação como PWA e um aplicativo Android empacotado com Capacitor.
 
-- Cadastra motos com foto, modelo, ano, quilometragem e preço de compra.
-- Registra gastos por moto, com categorias como combustível, manutenção, peças e outros.
-- Permite registrar litros abastecidos quando o gasto é de combustível.
-- Cria e acompanha tarefas de manutenção.
-- Mostra resumo da garagem, atividade recente e métricas de diagnóstico.
-- Suporta modo PWA, instalação no celular e cache offline básico.
+## Demonstracao
 
-## Principais telas
+- **Web/PWA:** [ride-control.vercel.app](https://ride-control.vercel.app)
+- **Android:** aplicativo gerado a partir do mesmo código-fonte web usando Capacitor
+- **iPhone:** acesso pela versão web publicada na Vercel, com suporte à instalação como PWA no Safari
+
+A experiência é responsiva e foi pensada para uso com uma mão em telas de celular, sem perder organização em telas maiores.
+
+## Visão do produto
+
+O RideControl transforma registros simples do dia a dia em uma visão prática da saúde e do custo de cada motocicleta:
+
+- centraliza motos, quilometragem, fotos e preço de aquisição;
+- registra abastecimentos e despesas por categoria;
+- acompanha manutenção preventiva por quilometragem, prazo e prioridade;
+- permite cadastrar despesas recorrentes;
+- apresenta indicadores de custo, distância e consumo;
+- oferece autenticação e sincronização em nuvem com Supabase;
+- mantém uma experiência local com persistência no navegador;
+- oferece tema claro e escuro, tutorial inicial e notificações de lembrete.
+
+## Telas e fluxos
 
 ### Início
 
-Mostra o resumo geral do app, atalho para as áreas principais, estatísticas rápidas e atividade recente.
+Dashboard com resumo da garagem, atalhos de ações rápidas, visão de gastos, próximas tarefas e atividade recente.
 
 ### Garagem
 
-Lista todas as motos cadastradas, destaca as favoritas e permite abrir a ficha de cada moto.
+Lista de motocicletas cadastradas, com identificação visual, favoritos e acesso rápido à ficha individual.
 
-### Moto
+### Detalhes da moto
 
-Exibe os detalhes da moto selecionada, imagem em destaque, botões para adicionar gastos e tarefas, e atividade recente.
+Ficha com foto, modelo, ano, quilometragem atual, preço de compra, ações para novo gasto ou tarefa e histórico associado à motocicleta.
 
-### Adicionar Moto
+### Cadastro e edicao de moto
 
-Cadastro de uma nova moto com nome, modelo, ano, quilometragem atual, preço de compra e foto.
+Fluxo para informar nome, modelo, ano, quilometragem inicial/atual, preço de compra e imagem da moto.
 
-### Adicionar Gastos
+### Gastos
 
-Cadastro de despesas da moto. Quando a categoria é combustível, aparece o campo de litros abastecidos.
+Registro de despesas de combustível, manutenção, peças, equipamentos e outros. Cada lançamento pode conter data, valor, quilometragem, observações, status e comprovante. Para combustível, o formulário também registra litros e marcação de tanque cheio.
 
-### Adicionar Tarefa
+### Tarefas de manutencao
 
-Cadastro de manutenção preventiva ou outras tarefas relacionadas à moto.
+Criação e acompanhamento de tarefas com quilometragem-alvo, prazo, prioridade e status de conclusão. A tela da moto reúne as tarefas pendentes e concluídas.
 
-### Diagnóstico
+### Despesas recorrentes
 
-Área de análise com gráficos e cards de total gasto, média mensal, custo por km e consumo.
+Cadastro de compromissos periódicos, como seguro, documentação e mensalidades, com valor, categoria, dia de vencimento e ativação individual.
+
+### Diagnostico e insights
+
+Área analítica com filtros por motocicleta e período, cards de indicadores, gráficos de evolução mensal e detalhamento da atividade financeira.
 
 ### Perfil
 
-Permite editar dados do usuário, foto do perfil, ativar tema escuro e acessar informações e notificações.
+Gerenciamento de dados pessoais, foto, preferências visuais, contas, sincronização e acesso às configurações do aplicativo.
 
-## Recursos de PWA
+### Notificacoes
 
-RideControl funciona como PWA:
+Configuração de lembretes para tarefas próximas do vencimento e despesas recorrentes, incluindo antecedência personalizada.
 
-- Pode ser instalado no celular.
-- Abre em modo standalone, sem barra do navegador.
-- Conta com service worker para cache de arquivos principais.
-- Foi ajustado para melhorar o fluxo de abertura em dispositivos móveis.
+### Autenticacao e onboarding
 
-## Estrutura do projeto
+Fluxo de criação de conta e login por e-mail, callback de autenticação, tutorial de apresentação e configuração inicial do perfil.
 
-- `src/App.tsx`: rotas principais do app.
-- `src/main.tsx`: ponto de entrada da aplicação React.
-- `src/context/AppContext.tsx`: estado global, persistência em `localStorage` e ações do app.
-- `src/pages/`: telas principais do sistema.
-- `src/components/`: componentes compartilhados, como navegação inferior e modal de imagem.
-- `src/lib/`: utilitários auxiliares.
-- `public/manifest.json`: configuração da PWA.
-- `public/sw.js`: service worker.
+## Cálculos e indicadores
 
-## Fluxo dos dados
+Os indicadores são calculados a partir dos registros informados pelo usuário:
 
-Os dados ficam salvos localmente no navegador via `localStorage`.
+- **Total gasto:** soma dos valores das despesas no período selecionado.
+- **Média mensal:** total do período dividido pela quantidade de meses considerados.
+- **Distância percorrida:** diferença entre leituras de quilometragem, considerando a quilometragem inicial de cada moto e evitando diferenças negativas.
+- **Litros abastecidos:** soma dos litros registrados nos lançamentos de combustível.
+- **Consumo médio:** ciclos válidos entre abastecimentos de tanque cheio, calculados por `quilômetros percorridos / litros acumulados`.
+- **Custo por quilômetro:** relação entre o gasto e a distância calculada para o contexto filtrado.
 
-- Motos cadastradas vão para o estado global.
-- Gastos são associados a uma moto específica.
-- Tarefas também ficam vinculadas à moto.
-- O perfil do usuário e as configurações do app são persistidos localmente.
+Os ciclos de consumo são considerados válidos apenas quando há distância positiva e litros registrados. Isso evita indicadores distorcidos por cadastros incompletos.
 
-## Tema claro e escuro
+## Temas e experiência visual
 
-O app tem alternância de tema claro e escuro. O estado é salvo localmente e reaplicado ao abrir o app.
+O aplicativo possui alternância entre **tema claro** e **tema escuro**, com a preferência salva localmente e restaurada na próxima abertura. A interface usa navegação inferior, ações rápidas, feedback visual, transições de página, safe areas para dispositivos móveis e componentes responsivos.
 
-## Sincronização em nuvem (definitivo)
+## Arquitetura
 
-O app agora suporta autenticação e backup em nuvem via Supabase.
-
-### 1) Configure variáveis de ambiente
-
-No `.env`:
-
-```bash
-APP_URL="https://ride-control.vercel.app"
-VITE_APP_URL="https://ride-control.vercel.app"
-VITE_SUPABASE_URL="https://SEU-PROJETO.supabase.co"
-VITE_SUPABASE_ANON_KEY="SUA_CHAVE_ANON"
+```text
+src/
+├── App.tsx                 Rotas, autenticação e ciclo principal do app
+├── components/             Navegação, modais, tutorial e atualização
+├── context/                Estado global, persistência e sincronização
+├── lib/                    Cálculos, datas, imagens, notificações e integrações
+├── pages/                  Telas e fluxos de negócio
+├── index.css               Estilos globais e temas
+├── main.tsx                Inicialização da aplicação
+└── types.ts                Contratos de dados do domínio
 ```
 
-Se você não tem domínio próprio, use a URL gratuita gerada pela Vercel.
-Ela já é pública e funciona para o redirect de confirmação do Supabase.
+O estado do aplicativo é mantido no contexto global e persistido no `localStorage`. Quando o Supabase está configurado, os dados do usuário são sincronizados com a tabela `app_state`, protegida por Row Level Security.
 
-### 2) Crie a tabela de estado no Supabase (SQL Editor)
+## Tecnologias utilizadas
 
-```sql
-create table if not exists public.app_state (
-	user_id uuid primary key references auth.users(id) on delete cascade,
-	data jsonb not null,
-	updated_at timestamptz not null default now()
-);
+### Front-end
 
-alter table public.app_state enable row level security;
+- React 19 e TypeScript
+- Vite
+- React Router
+- Tailwind CSS
+- Lucide React
+- Motion
+- Recharts
 
-create policy "select own state"
-on public.app_state for select
-using (auth.uid() = user_id);
+### Plataforma e dados
 
-create policy "insert own state"
-on public.app_state for insert
-with check (auth.uid() = user_id);
+- Progressive Web App com `vite-plugin-pwa`
+- Capacitor 8 para Android
+- Supabase Auth e banco PostgreSQL
+- `localStorage` para persistencia local
+- Web APIs e Capacitor Local Notifications
+- Vercel para hospedagem web e funcoes serverless
 
-create policy "update own state"
-on public.app_state for update
-using (auth.uid() = user_id)
-with check (auth.uid() = user_id);
-```
+### Qualidade e ferramentas
 
-Se você rodar apenas o bloco de RLS/políticas sem criar a tabela antes,
-o Supabase retorna `relation "public.app_state" does not exist`.
-Por isso, execute o bloco inteiro acima exatamente nessa ordem.
+- Vitest para testes unitarios
+- TypeScript em modo de verificacao estatica
+- O script `lint` executa o TypeScript compiler em modo `noEmit`
 
-### 3) Uso no app
+## Como executar localmente
 
-- Tela Perfil: criar conta/entrar com email e senha
-- Após login, o app sincroniza automaticamente
-- Botão "Sincronizar agora" força upload imediato
-- Ao trocar de celular, basta fazer login na mesma conta
-- O email de confirmação é enviado com redirect para `${APP_URL}/auth`
-- Se estiver testando localmente, o redirect usa `localhost`; para produção,
-  use a URL pública da Vercel
+### Pre-requisitos
 
-### 4) Conta de dev local
+- Node.js 20 ou superior
+- npm
+- Android Studio e SDK Android, caso queira gerar o aplicativo Android
 
-Para testes rápidos no ambiente de desenvolvimento, a tela de login mostra o
-botão "Entrar como dev". Essa conta:
-
-- entra sem email e senha
-- usa uma senha definida apenas na build de desenvolvimento
-- salva os dados localmente no navegador
-- não faz sincronização com o Supabase
-- serve para testar o app inteiro sem depender de backend
-
-Se quiser personalizar o rótulo da conta, defina estas variáveis no `.env`:
-
-```bash
-VITE_DEV_ACCOUNT_EMAIL="dev@ridecontrol.local"
-VITE_DEV_ACCOUNT_NAME="Conta de dev"
-VITE_DEV_SESSION_PASSWORD="sua_senha_de_dev"
-```
-
-### 4) Configuração obrigatória no Supabase
-
-- Em Authentication > URL Configuration, defina a Site URL da sua implantação
-- Em produção, adicione também a URL final do app em Additional Redirect URLs
-- Não use `localhost` como URL principal se o app for aberto em web pública ou APK
-- Para o app Android abrir de volta na instalação, adicione também
-  `com.ridecontrol.app://auth/callback` em Additional Redirect URLs
-
-### 5) Exclusão de conta no servidor
-
-Para cumprir a exigência da Play Store, publique o endpoint `/api/delete-account`
-na mesma implantação do app e configure estas variáveis no servidor:
-
-```bash
-SUPABASE_URL="https://SEU-PROJETO.supabase.co"
-SUPABASE_SERVICE_ROLE_KEY="SUA_CHAVE_SERVICE_ROLE"
-```
-
-O app envia o `userId` e o token autenticado. O endpoint valida a sessão,
-remove `public.app_state` e apaga o usuário no Supabase Auth.
-
-## Atualização do APK
-
-O app verifica um manifesto remoto de atualização ao abrir e também quando volta
-para primeiro plano.
-
-Essa função deve ficar desligada na build publicada na Play Store.
-
-### 1) Publique um manifesto JSON
-
-Hospede um arquivo JSON em um servidor público, por exemplo:
-
-```json
-{
-  "version": "1.0.2",
-  "apkUrl": "https://seu-servidor.com/RideControl.apk",
-  "notes": "Correções e melhorias na versão 1.0.2",
-  "force": false
-}
-```
-
-### 2) Configure a URL do manifesto
-
-No `.env` da build:
-
-```bash
-VITE_UPDATE_MANIFEST_URL="https://seu-servidor.com/app-update.json"
-VITE_ENABLE_APK_UPDATE="true"
-```
-
-Se essa variável não existir, o app usa `/app-update.json` como fallback.
-
-Para a Play Store, mantenha `VITE_ENABLE_APK_UPDATE` ausente ou como `false`.
-
-### 3) Fluxo no app
-
-- Ao detectar uma versão maior que a atual, o app mostra um modal de atualização
-- O botão "Atualizar APK" baixa o APK antes de abrir a instalação
-- Se `force` for `true`, a atualização não pode ser dispensada pelo usuário
-- No Android, o usuário ainda precisa permitir "Instalar apps desconhecidos"
-- O APK novo precisa usar o mesmo `package name` e o mesmo keystore do anterior
-
-### 4) Cache de checagem
-
-- O app evita repetir a mesma checagem em sequência usando cache local
-- Se você publicar uma versão nova, a checagem volta a acontecer normalmente
-
-### 5) Versionamento do app
-
-- A versão atual do app vem de `package.json`
-- O Android usa `versionName` sincronizado com essa versão
-- Ao publicar um novo APK, incremente a versão e gere um novo manifesto
-
-## Privacidade
-
-O app coleta e sincroniza apenas os dados necessários para o funcionamento:
-
-- conta de usuário para autenticação
-- dados de motos, gastos, tarefas e perfil
-- foto de perfil, quando o usuário define uma imagem
-
-O app não compartilha dados com terceiros fora do fluxo de autenticação e
-sincronização configurado pelo próprio usuário.
-
-Se você quiser publicar, hospede uma política de privacidade pública e aponte o
-link na Play Console.
-
-## Como rodar
-
-### Requisitos
-
-- Node.js
-
-### Instalar dependências
+### Instalacao
 
 ```bash
 npm install
-```
-
-### Rodar em desenvolvimento
-
-```bash
+copy .env.example .env.local
 npm run dev
 ```
 
-### Gerar build de produção
+No macOS/Linux, use `cp .env.example .env.local` no lugar do comando `copy`. O endereco local padrao e `http://localhost:3000`.
+
+### Variaveis de ambiente
+
+Preencha apenas as variaveis necessarias em `.env.local` ou nas configuracoes da Vercel. Nunca publique valores reais no repositorio:
+
+```env
+VITE_APP_URL=https://ride-control.vercel.app
+VITE_SUPABASE_URL=https://seu-projeto.supabase.co
+VITE_SUPABASE_ANON_KEY=sua-chave-publica
+```
+
+A chave `SUPABASE_SERVICE_ROLE_KEY` e exclusiva do ambiente do servidor e nao deve ser exposta ao navegador, ao APK ou ao GitHub. O arquivo `.env.example` contem somente nomes de variaveis e valores vazios para orientar a configuracao.
+
+## Scripts disponiveis
+
+| Comando | Finalidade |
+| --- | --- |
+| `npm run dev` | Inicia o servidor de desenvolvimento |
+| `npm run build` | Gera a versao de producao |
+| `npm run preview` | Serve a build localmente |
+| `npm run lint` | Verifica os tipos TypeScript |
+| `npm test` | Executa os testes unitarios |
+
+## Build Android
+
+O projeto Android esta em `android/` e utiliza o bundle web produzido pelo Vite. Para atualizar os arquivos nativos apos uma build web:
 
 ```bash
 npm run build
+npx cap sync android
 ```
 
-### Pré-visualizar build
+Depois, abra o projeto no Android Studio para executar em um dispositivo ou gerar um APK/AAB assinado. Credenciais de assinatura, keystores e artefatos de release devem permanecer fora do Git.
 
-```bash
-npm run preview
-```
+## Publicacao na Vercel
 
-### Verificação de TypeScript
+1. Importe o repositorio na Vercel.
+2. Use `npm run build` como comando de build.
+3. Configure as variaveis publicas do Supabase no ambiente da Vercel.
+4. Configure no Supabase a URL da implantacao e os redirects de autenticacao.
+5. Publique e valide o fluxo web no desktop, Android e Safari/iPhone.
 
-```bash
-npm run lint
-```
+O arquivo `vercel.json` mantem o roteamento da SPA funcionando ao abrir diretamente qualquer rota e encaminha as funcoes da pasta `api/`.
 
-## Observações
+## Privacidade e seguranca
 
-- O app foi otimizado para uso em celular.
-- Algumas imagens são salvas em formato local no navegador, então o espaço disponível no dispositivo pode afetar arquivos grandes.
-- Em PWA, recomenda-se instalar o app diretamente pela opção de instalação do navegador.
+O RideControl foi estruturado para nao versionar credenciais ou artefatos locais. O `.gitignore` exclui arquivos `.env`, builds, cobertura, diretorios da Vercel, propriedades locais do Android, keystores, APKs e AABs.
 
-## Shortcuts
+Os dados sincronizados pertencem a conta autenticada e as politicas de RLS devem permitir acesso somente ao proprio `user_id`. Consulte [PRIVACY_POLICY.md](PRIVACY_POLICY.md) para a politica de privacidade do aplicativo.
 
-press r + enter to restart the server
-press u + enter to show server url
-press o + enter to open in browser
-press c + enter to clear console
-press q + enter to quit
+## Status do projeto
 
-## Tecnologias
+Projeto funcional em evolucao, com foco em gestao pessoal de motocicletas, acompanhamento financeiro e manutencao preventiva.
 
-- React 19
-- TypeScript
-- Vite
-- Tailwind CSS
-- React Router
-- Motion
-- Recharts
-- date-fns
-- Lucide React
+## Autor
+
+Desenvolvido por **Alexsander de Assis Alcantara**.
+
+Este repositorio apresenta a implementacao, as decisoes tecnicas e a arquitetura do RideControl para fins de portfolio e evolucao continua.

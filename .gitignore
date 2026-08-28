@@ -7,3 +7,13 @@ coverage/
 .env*
 !.env.example
 .vercel
+
+# Android local configuration and signing credentials
+android/local.properties
+*.jks
+*.keystore
+*.p12
+
+# Generated mobile release packages
+*.apk
+*.aab
