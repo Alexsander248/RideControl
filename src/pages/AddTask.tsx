@@ -106,12 +106,13 @@ export const AddTask: React.FC = () => {
                 required
                 type="number"
                 className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-blue-500/20"
-                value={formData.targetKm}
+                value={formData.targetKm === 0 ? "" : formData.targetKm}
                 onChange={(e) => {
-                  const nextTargetKm = Number(e.target.value);
+                  const value = e.target.value;
+
                   setFormData({
                     ...formData,
-                    targetKm: Number.isNaN(nextTargetKm) ? 0 : nextTargetKm,
+                    targetKm: value === "" ? 0 : Number(value),
                   });
                 }}
               />
